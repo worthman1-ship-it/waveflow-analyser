@@ -50,6 +50,9 @@ export function WavSourceNode({ id, data }: NodeProps) {
     <Shell id={id} title="WAV file" accent="#2a78d6" output>
       <input className="nodrag" type="file" accept=".wav,audio/wav"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) loadFile(id, f); }} />
+      {!info && typeof d.fileName === 'string' && (
+        <div className="hint">Select {d.fileName} again — saved graphs don't contain the audio.</div>
+      )}
       {info && (
         <div className="info">
           <b>{String(d.fileName)}</b><br />

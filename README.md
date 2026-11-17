@@ -12,6 +12,8 @@ Browser app for evaluating WAV recordings with a node graph (React Flow). Wire
 | Loudness & sharpness | Zwicker loudness (ISO 532-1 stationary method, free/diffuse field) for the whole file and per block, N5, Nmax; DIN 45692 sharpness. Needs Pa and fs ≥ 32 kHz. |
 | Roughness | Daniel & Weber model, per ~0.2 s frame. Needs Pa. |
 
+**New / Open… / Save…** handle graph files (JSON: node settings, layout, wiring and WAV file names — not the audio; reselect the WAVs after opening). The current graph is also autosaved in the browser and restored on reload.
+
 Computation runs in a Web Worker; results are cached per upstream chain, so only changed nodes recompute.
 
 ## Run

@@ -25,6 +25,9 @@ main { flex: 1; background: var(--surface); }
 }
 .palette button:hover { border-color: var(--accent); }
 .palette button.primary { background: var(--accent); color: white; border-color: var(--accent); text-align: center; }
+.file-buttons { display: flex; gap: 4px; }
+.file-buttons button { flex: 1; text-align: center; }
+.palette .node-error { padding: 0; }
 .palette hr { width: 100%; border: 0; border-top: 1px solid var(--line); }
 .muted { color: var(--ink-2); font-size: 12px; }
 .check { display: flex; gap: 6px; align-items: center; }
