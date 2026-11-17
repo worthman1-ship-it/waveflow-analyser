@@ -7,6 +7,7 @@ import '@xyflow/react/dist/style.css';
 import { nodeTypes, PALETTE } from './nodes/nodes';
 import { GraphContext, type GraphState } from './ui/context';
 import { parseWav } from './dsp/wav';
+import { allWavKeys, deleteWav, getWav, putWav } from './ui/wavStore';
 import { downloadGraph, loadAutosave, parseGraph, writeAutosave } from './ui/graphFile';
 import type { NodeKind, NodeResult, NodeSpec, WorkerIn, WorkerOut } from './engine/types';
 
@@ -97,7 +98,7 @@ export default function App() {
     setResults({}); setStatus({}); setErrors({}); setGraphError(undefined);
     setNodes(g.nodes);
     setEdges(g.edges);
-    requestAnimationFrame(() => fitView());
+    requestAnimationFrame(() => { fitView(); restoreWavs(g.nodes); });
   };
 
   const openGraph = (file: File) => {
@@ -112,24 +113,52 @@ export default function App() {
     }
   };
 
+  /** Parse a WAV, hand it to the worker and point the node at it. Returns false (and shows the error) if it isn't valid. */
+  const attachWav = useCallback((nodeId: string, name: string, buf: ArrayBuffer, oldFileId?: string, resetChannel = true) => {
+    try {
+      const w = parseWav(buf);
+      const fileId = `${name}:${crypto.randomUUID()}`;
+      if (oldFileId) post({ type: 'dropFile', fileId: oldFileId });
+      post({ type: 'file', fileId, buffer: buf }, [buf]);
+      setErrors((s) => ({ ...s, [nodeId]: undefined }));
+      updateNodeData(nodeId, {
+        fileId, fileName: name, ...(resetChannel ? { channel: 0 } : {}),
+        info: { fs: w.fs, channels: w.channels.length, duration: (w.channels[0]?.length ?? 0) / w.fs, bits: w.bitsPerSample, format: w.format },
+      });
+      return true;
+    } catch (e) {
+      setErrors((s) => ({ ...s, [nodeId]: e instanceof Error ? e.message : String(e) }));
+      return false;
+    }
+  }, [updateNodeData]);
+
   const loadFile = useCallback((nodeId: string, file: File) => {
     file.arrayBuffer().then((buf) => {
-      try {
-        const w = parseWav(buf);
-        const fileId = `${file.name}:${crypto.randomUUID()}`;
-        const old = nodes.find((n) => n.id === nodeId)?.data.fileId as string | undefined;
-        if (old) post({ type: 'dropFile', fileId: old });
-        post({ type: 'file', fileId, buffer: buf }, [buf]);
-        setErrors((s) => ({ ...s, [nodeId]: undefined }));
-        updateNodeData(nodeId, {
-          fileId, fileName: file.name, channel: 0,
-          info: { fs: w.fs, channels: w.channels.length, duration: (w.channels[0]?.length ?? 0) / w.fs, bits: w.bitsPerSample, format: w.format },
-        });
-      } catch (e) {
-        setErrors((s) => ({ ...s, [nodeId]: e instanceof Error ? e.message : String(e) }));
-      }
+      const old = nodes.find((n) => n.id === nodeId)?.data.fileId as string | undefined;
+      const copy = buf.slice(0); // the worker takes ownership of buf
+      if (attachWav(nodeId, file.name, buf, old)) putWav(nodeId, file.name, copy);
     });
-  }, [nodes, updateNodeData]);
+  }, [nodes, attachWav]);
+
+  /** Reload each source node's WAV from the browser store, then forget stored files no node uses. */
+  const restoreWavs = useCallback(async (ns: Node[]) => {
+    const sources = ns.filter((n) => n.type === 'wavSource');
+    await Promise.all(sources.map(async (n) => {
+      if (!n.data.fileName) return;
+      const rec = await getWav(n.id);
+      if (rec && rec.name === n.data.fileName) attachWav(n.id, rec.name, rec.buffer, undefined, false);
+    }));
+    const keep = new Set(sources.map((n) => n.id));
+    for (const k of await allWavKeys()) if (!keep.has(String(k))) deleteWav(String(k));
+  }, [attachWav]);
+
+  const restoredOnce = useRef(false);
+  useEffect(() => {
+    if (restoredOnce.current) return;
+    restoredOnce.current = true;
+    if (restored) restoreWavs(restored.nodes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onConnect = useCallback((c: Connection) => {
     // One input per node: a new connection replaces the old one.
@@ -171,7 +200,7 @@ export default function App() {
           <input ref={openInput} type="file" accept=".json,application/json" hidden
             onChange={(e) => { const f = e.target.files?.[0]; if (f) openGraph(f); e.target.value = ''; }} />
           {graphError && <div className="node-error">⚠ {graphError}</div>}
-          <p className="muted">The graph is kept in this browser automatically. Saved graphs hold settings and WAV file names, not the audio.</p>
+          <p className="muted">The graph is kept in this browser automatically. Loaded WAVs are kept too. Saved graph files hold settings and WAV file names, not the audio.</p>
           <hr />
           <label className="check"><input type="checkbox" checked={autoRun} onChange={(e) => setAutoRun(e.target.checked)} /> Auto-run on change</label>
           <button className="primary" onClick={run}>Run</button>
@@ -180,7 +209,7 @@ export default function App() {
         <main>
           <ReactFlow
             nodes={nodes} edges={edges} nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
+            onNodesChange={onNodesChange} onNodesDelete={(ns) => ns.forEach((n) => deleteWav(n.id))} onEdgesChange={onEdgesChange} onConnect={onConnect}
             fitView minZoom={0.2} deleteKeyCode={['Delete', 'Backspace']}
           >
             <Background gap={20} />
