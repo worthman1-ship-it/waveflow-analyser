@@ -8,6 +8,9 @@ import { rms, timeWeighted, vdv, TAU_FAST, TAU_SLOW } from '../dsp/levels';
 import { spectrogram } from '../dsp/spectrogram';
 import { loudnessFromLevels, thirdOctaveLevels } from '../dsp/loudness';
 import { roughness } from '../dsp/roughness';
+import { fluctuationStrength } from '../dsp/fluctuation';
+import { tonality } from '../dsp/tonality';
+import { impulsivity } from '../dsp/impulsivity';
 import type { EdgeSpec, NodeResult, NodeSpec, Signal, WavParams, WorkerOut } from './types';
 
 export class GraphRunner {
@@ -132,6 +135,10 @@ function unitFor(q: Signal['quantity']): string {
   return { acceleration: 'm/s²', velocity: 'm/s', displacement: 'm', pressure: 'Pa', other: 'FS' }[q];
 }
 
+function needPressure(s: Signal, what: string) {
+  if (s.quantity !== 'pressure') throw new Error(`${what} needs a sound-pressure signal (set the source quantity to Pa)`);
+}
+
 function analyse(n: NodeSpec, s: Signal, status: (t: string) => void): NodeResult {
   const p = n.params;
   switch (n.type) {
@@ -169,6 +176,23 @@ function analyse(n: NodeSpec, s: Signal, status: (t: string) => void): NodeResul
       if (s.quantity !== 'pressure') throw new Error('Roughness needs a sound-pressure signal (set the source quantity to Pa)');
       const r = roughness(s.data, s.fs, Number(p.overlap), (f) => status(`Computing… ${Math.round(f * 100)}%`));
       return { kind: 'roughness', label: s.label, ...r };
+    }
+    case 'fluctuation': {
+      needPressure(s, 'Fluctuation strength');
+      const r = fluctuationStrength(s.data, s.fs, (f) => status(`Computing… ${Math.round(f * 100)}%`));
+      return { kind: 'fluctuation', label: s.label, ...r };
+    }
+    case 'tonality': {
+      needPressure(s, 'Tonality');
+      return { kind: 'tonality', label: s.label, ...tonality(s.data, s.fs, s.ref, Number(p.nfft)) };
+    }
+    case 'impulsivity': {
+      needPressure(s, 'Impulsiveness');
+      if (s.weighting !== 'Z') throw new Error('Connect the unweighted signal: impulsiveness applies A-weighting itself');
+      let peak = 0;
+      for (let i = 0; i < s.data.length; i++) peak = Math.max(peak, Math.abs(s.data[i]));
+      const a = sosFilter(weightingSos('A', s.fs), s.data);
+      return { kind: 'impulsivity', label: s.label, ...impulsivity(a, s.fs, s.ref, peak) };
     }
     default:
       throw new Error(`Unknown node type ${n.type}`);

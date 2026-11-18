@@ -6,6 +6,9 @@ import { rms, timeWeighted, toDb, vdv } from './levels';
 import { spectrogram } from './spectrogram';
 import { loudnessFromLevels, thirdOctaveLevels } from './loudness';
 import { roughness } from './roughness';
+import { fluctuationStrength } from './fluctuation';
+import { tonality } from './tonality';
+import { impulsivity } from './impulsivity';
 
 const sine = (f: number, amp: number, fs: number, sec: number) =>
   Float64Array.from({ length: Math.round(fs * sec) }, (_, i) => amp * Math.sin((2 * Math.PI * f * i) / fs));
@@ -122,5 +125,67 @@ describe('roughness', () => {
     const r = roughness(x, fs, 0.5);
     expect(r.mean).toBeGreaterThan(0.8);
     expect(r.mean).toBeLessThan(1.2);
+  });
+});
+
+// Deterministic pseudo-random noise (rms 1).
+const noise = (n: number, seed = 1) => {
+  let a = seed;
+  return Float64Array.from({ length: n }, () => {
+    let s = 0;
+    for (let k = 0; k < 12; k++) { a = (a * 1664525 + 1013904223) >>> 0; s += a / 4294967296; }
+    return s - 6;
+  });
+};
+const REF = 2e-5;
+const pa = (db: number) => REF * 10 ** (db / 20) * Math.SQRT2; // sine amplitude for a given SPL
+
+describe('fluctuation strength', () => {
+  const am = (fm: number, depth = 1) => {
+    const c = sine(1000, pa(60), 48000, 6);
+    return c.map((v, i) => v * (1 + depth * Math.sin((2 * Math.PI * fm * i) / 48000)));
+  };
+  it('1 kHz 60 dB 100 % AM at 4 Hz is ~1 vacil', () => {
+    const r = fluctuationStrength(am(4), 48000);
+    expect(r.mean).toBeGreaterThan(0.8);
+    expect(r.mean).toBeLessThan(1.2);
+    expect(r.fmod).toBeCloseTo(4, 0);
+  });
+  it('is low for an unmodulated tone and for 1 Hz modulation, and falls with depth', () => {
+    expect(fluctuationStrength(sine(1000, pa(60), 48000, 6), 48000).mean).toBeLessThan(0.1);
+    expect(fluctuationStrength(am(1), 48000).mean).toBeLessThan(0.6);
+    expect(fluctuationStrength(am(4, 0.3), 48000).mean).toBeLessThan(fluctuationStrength(am(4), 48000).mean);
+  });
+});
+
+describe('tonality', () => {
+  it('a 1 kHz tone in weak noise is ~1 tu with large TNR', () => {
+    const x = sine(1000, pa(60), 48000, 3);
+    const n = noise(x.length);
+    for (let i = 0; i < x.length; i++) x[i] += n[i] * REF * 10 ** (20 / 20) * 0.1; // ~ 6 dB SPL broadband
+    const r = tonality(x, 48000, REF);
+    expect(r.Kmean).toBeGreaterThan(0.8);
+    expect(r.Kmean).toBeLessThan(1.15);
+    expect(r.tnrMax).toBeGreaterThan(30);
+    expect(r.fTnr).toBeCloseTo(1000, -1);
+    expect(r.tones[0].prominent).toBe(true);
+  });
+  it('white noise is not tonal', () => {
+    const x = noise(48000 * 3).map((v) => v * 0.02);
+    const r = tonality(x, 48000, REF);
+    expect(r.Kmean).toBeLessThan(0.1);
+    expect(r.tones.filter((t) => t.prominent).length).toBe(0);
+  });
+});
+
+describe('impulsivity', () => {
+  it('steady noise has a small LAI−LAF, clicks a large one', () => {
+    const steady = sine(1000, 0.1, 48000, 4);
+    const a = impulsivity(steady, 48000, REF, 0.5);
+    expect(Math.abs(a.diff)).toBeLessThan(1);
+    const clicks = new Float64Array(48000 * 4);
+    for (let k = 0; k < 4; k++) for (let i = 0; i < 48; i++) clicks[(k * 48000) + 12000 + i] = Math.sin((2 * Math.PI * 1000 * i) / 48000) * 5;
+    const b = impulsivity(clicks, 48000, REF, 5);
+    expect(b.diff).toBeGreaterThan(4.5); // short burst: ≈ 10·log(125 ms / 35 ms) = 5.5 dB
   });
 });

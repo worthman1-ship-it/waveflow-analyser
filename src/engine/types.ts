@@ -1,4 +1,7 @@
 import type { WeightingId } from '../dsp/weighting';
+import type { FluctuationResult } from '../dsp/fluctuation';
+import type { TonalityResult } from '../dsp/tonality';
+import type { ImpulsivityResult } from '../dsp/impulsivity';
 
 export type Quantity = 'acceleration' | 'velocity' | 'displacement' | 'pressure' | 'other';
 
@@ -17,7 +20,7 @@ export interface SpectrogramParams { nfft: number; overlap: number; range: numbe
 export interface LoudnessParams { field: 'free' | 'diffuse'; blockSec: number }
 export interface RoughnessParams { overlap: number }
 
-export type NodeKind = 'wavSource' | 'weighting' | 'level' | 'spectrogram' | 'loudness' | 'roughness';
+export type NodeKind = 'wavSource' | 'weighting' | 'level' | 'spectrogram' | 'loudness' | 'roughness' | 'fluctuation' | 'tonality' | 'impulsivity';
 
 export interface NodeSpec { id: string; type: NodeKind; params: Record<string, unknown> }
 export interface EdgeSpec { source: string; target: string }
@@ -57,10 +60,13 @@ export interface RoughnessResultMsg {
   kind: 'roughness';
   label: string; R: Float32Array; dt: number; frameSec: number; mean: number; max: number;
 }
+export type FluctuationResultMsg = FluctuationResult & { kind: 'fluctuation'; label: string };
+export type TonalityResultMsg = TonalityResult & { kind: 'tonality'; label: string };
+export type ImpulsivityResultMsg = ImpulsivityResult & { kind: 'impulsivity'; label: string };
 export interface SourceResult {
   kind: 'source'; fs: number; channels: number; duration: number; bits: number; format: string; peak: number;
 }
-export type NodeResult = LevelResult | SpectrogramResult | LoudnessResult | RoughnessResultMsg | SourceResult;
+export type NodeResult = LevelResult | SpectrogramResult | LoudnessResult | RoughnessResultMsg | FluctuationResultMsg | TonalityResultMsg | ImpulsivityResultMsg | SourceResult;
 
 export type WorkerIn =
   | { type: 'file'; fileId: string; buffer: ArrayBuffer }

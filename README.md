@@ -11,6 +11,9 @@ Browser app for evaluating WAV recordings with a node graph (React Flow). Wire
 | Moving FFT | Hann-windowed STFT spectrogram (bin RMS) and average spectrum; FFT size, overlap, max frequency, display range. |
 | Loudness & sharpness | Zwicker loudness (ISO 532-1 stationary method, free/diffuse field) for the whole file and per block, N5, Nmax; DIN 45692 sharpness. Needs Pa and fs ≥ 32 kHz. |
 | Roughness | Daniel & Weber model, per ~0.2 s frame. Needs Pa. |
+| Fluctuation strength | Slow loudness modulation (0.5–20 Hz) in vacil, 2 s windows. Simplified Fastl model scaled to 1 kHz / 60 dB / 100 % AM 4 Hz = 1 vacil. Needs Pa, fs ≥ 32 kHz. |
+| Tonality | Tone-to-noise ratio and prominence ratio per ECMA-74 (prominence limits), tone table, and an Aures-type tonality in tu. Needs Pa. |
+| Impulsiveness | L<sub>AF,max</sub>, L<sub>AI,max</sub> and their difference, L<sub>Aeq</sub>, peak, crest factor. A-weights internally, so connect the unweighted signal. Needs Pa. |
 
 **New / Open… / Save…** handle graph files (JSON: node settings, layout, wiring and WAV file names — not the audio; reselect the WAVs after opening a file on another machine). The current graph and its loaded WAVs are also kept in the browser (localStorage + IndexedDB) and restored on reload.
 
@@ -30,6 +33,8 @@ npm run build    # static build in dist/
 - A/C weighting is a bilinear IIR with pre-warped poles: within 0.3 dB of IEC 61672 to 4 kHz and 0.7 dB to 12.5 kHz at 48 kHz.
 - Loudness uses our own 6th-order Butterworth third-octave bank, not the ISO 532-1 reference filters. The per-block values apply the stationary method to each block; they are **not** the ISO 532-1 time-varying method. The first block includes filter start-up.
 - Roughness frames are the power of two nearest 0.2 s (171 ms at 48 kHz).
+- - Fluctuation strength, tonality (Aures part) and the loudness ratio inside it are approximations calibrated to their reference definitions, not ports of a standard's reference code. TNR/PR use the average spectrum; thresholds follow ECMA-74.
+- Not included: ISO 532-1 time-varying loudness, ECMA-418-2 (Sottek) tonality/roughness, articulation index.
 - Checks in `src/dsp/dsp.test.ts`: 1 kHz 40 dB → 1.0 sone; 1 kHz 60 dB → ~4 sone and ~1 acum; 1 kHz 60 dB 70 Hz AM → ~0.9 asper; weighting table points; Fast/Slow burst response; VDV; FFT scaling.
 
 Loudness/roughness tables are ported from MoSQITo (Apache-2.0); see `THIRD_PARTY_NOTICES.md`.

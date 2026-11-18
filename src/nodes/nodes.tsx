@@ -248,6 +248,98 @@ export function RoughnessNode({ id, data }: NodeProps) {
   );
 }
 
+// ───────────────────────── Fluctuation strength ─────────────────────────
+export function FluctuationNode({ id }: NodeProps) {
+  const r = useGraph().results[id];
+  const res = r?.kind === 'fluctuation' ? r : undefined;
+  return (
+    <Shell id={id} title="Fluctuation strength" accent="#9b6cd6" input>
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>Mean</td><td>{res.mean.toFixed(3)} vacil</td></tr>
+              <tr><td>Max</td><td>{res.max.toFixed(3)} vacil</td></tr>
+              <tr><td>Dominant modulation</td><td>{res.fmod.toFixed(1)} Hz</td></tr>
+            </tbody>
+          </table>
+          <LinePlot yLabel="vacil" height={110} series={[{ label: 'F(t)', data: res.F, dt: res.dt, x0: res.windowSec / 2, color: SERIES[0] }]} />
+          <div className="hint">Simplified Fastl model on {res.windowSec.toFixed(0)} s windows, scaled so 1 kHz / 60 dB / 100 % AM at 4 Hz = 1 vacil. Needs ≥ 1 s of Pa and fs ≥ 32 kHz.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
+// ───────────────────────── Tonality ─────────────────────────
+export function TonalityNode({ id, data }: NodeProps) {
+  const d = data as Data;
+  const set = useParams(id);
+  const r = useGraph().results[id];
+  const res = r?.kind === 'tonality' ? r : undefined;
+  return (
+    <Shell id={id} title="Tonality (TNR, PR, Aures)" accent="#1baf7a" input>
+      <Field label="FFT size">
+        <select className="nodrag" value={Number(d.nfft)} onChange={(e) => set({ nfft: Number(e.target.value) })}>
+          {[4096, 8192, 16384, 32768].map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </Field>
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>Tonality (Aures), mean / max</td><td>{res.Kmean.toFixed(2)} / {res.Kmax.toFixed(2)} tu</td></tr>
+              <tr><td>Max TNR</td><td>{isFinite(res.tnrMax) ? `${res.tnrMax.toFixed(1)} dB @ ${res.fTnr.toFixed(0)} Hz` : 'no tones'}</td></tr>
+              <tr><td>Max PR</td><td>{isFinite(res.prMax) ? `${res.prMax.toFixed(1)} dB` : '–'}</td></tr>
+            </tbody>
+          </table>
+          {res.tones.length > 0 && (
+            <table className="results">
+              <thead><tr><th>Tone</th><th>Level</th><th>TNR</th><th>PR</th><th>Prominent</th></tr></thead>
+              <tbody>
+                {res.tones.map((t) => (
+                  <tr key={t.f}><td>{t.f.toFixed(0)} Hz</td><td>{t.levelDb.toFixed(1)}</td><td>{t.tnr.toFixed(1)}</td><td>{t.pr.toFixed(1)}</td><td>{t.prominent ? 'yes' : 'no'}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <LinePlot yLabel="tu" height={110} series={[{ label: 'K(t)', data: res.K, dt: res.dt, x0: res.frameSec / 2, color: SERIES[0] }]} />
+          <div className="hint">Tones from the average spectrum ({res.frameSec.toFixed(2)} s frames); prominence limits per ECMA-74 (TNR ≥ 8 dB, PR ≥ 9 dB above 1 kHz). Aures value is approximate.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
+// ───────────────────────── Impulsiveness ─────────────────────────
+export function ImpulsivityNode({ id }: NodeProps) {
+  const r = useGraph().results[id];
+  const res = r?.kind === 'impulsivity' ? r : undefined;
+  return (
+    <Shell id={id} title="Impulsiveness (LAI − LAF)" accent="#c48a00" input>
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>L<sub>AF,max</sub></td><td>{res.lafMax.toFixed(1)} dB @ {res.tLaf.toFixed(2)} s</td></tr>
+              <tr><td>L<sub>AI,max</sub></td><td>{res.laiMax.toFixed(1)} dB @ {res.tLai.toFixed(2)} s</td></tr>
+              <tr><td>L<sub>AI,max</sub> − L<sub>AF,max</sub></td><td><b>{res.diff.toFixed(1)} dB</b></td></tr>
+              <tr><td>L<sub>Aeq</sub></td><td>{res.laeq.toFixed(1)} dB</td></tr>
+              <tr><td>Peak (unweighted)</td><td>{res.peak.toFixed(1)} dB</td></tr>
+              <tr><td>Crest factor</td><td>{res.crest.toFixed(1)} dB</td></tr>
+            </tbody>
+          </table>
+          <LinePlot yLabel="dB(A)" height={120} series={[
+            { label: 'LAF', data: res.laf, dt: res.dt, color: SERIES[0] },
+            { label: 'LAI', data: res.lai, dt: res.dt, color: SERIES[1] },
+          ]} />
+          <div className="hint">Applies A-weighting itself — connect the unweighted signal. Fast τ 125 ms; Impulse rise 35 ms, decay 1.5 s.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
 export const nodeTypes = {
   wavSource: WavSourceNode,
   weighting: WeightingNode,
@@ -255,6 +347,9 @@ export const nodeTypes = {
   spectrogram: SpectrogramNode,
   loudness: LoudnessNode,
   roughness: RoughnessNode,
+  fluctuation: FluctuationNode,
+  tonality: TonalityNode,
+  impulsivity: ImpulsivityNode,
 };
 
 export const PALETTE: { type: NodeKind; label: string; defaults: Data }[] = [
@@ -264,4 +359,7 @@ export const PALETTE: { type: NodeKind; label: string; defaults: Data }[] = [
   { type: 'spectrogram', label: 'Moving FFT', defaults: { nfft: 4096, overlap: 0.5, fMax: 0, uiRange: 60 } },
   { type: 'loudness', label: 'Loudness & sharpness', defaults: { field: 'free', blockSec: 0.1 } },
   { type: 'roughness', label: 'Roughness', defaults: { overlap: 0.5 } },
+  { type: 'fluctuation', label: 'Fluctuation strength', defaults: {} },
+  { type: 'tonality', label: 'Tonality (TNR, PR, Aures)', defaults: { nfft: 16384 } },
+  { type: 'impulsivity', label: 'Impulsiveness (LAI − LAF)', defaults: {} },
 ];
