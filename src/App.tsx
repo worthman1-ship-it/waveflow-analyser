@@ -172,7 +172,7 @@ export default function App() {
       const x = type === 'wavSource' ? 20 : type === 'weighting' ? 340 : 700;
       const inCol = ns.filter((n) => Math.abs(n.position.x - x) < 150);
       // Reserve the height a node reaches once its results are shown, so it won't overlap later.
-      const fullHeight: Record<string, number> = { level: 400, spectrogram: 560, loudness: 500, roughness: 320, fluctuation: 360, tonality: 560, impulsivity: 520 };
+      const fullHeight: Record<string, number> = { level: 400, spectrogram: 560, loudness: 500, loudnessTv: 400, roughness: 320, fluctuation: 360, tonality: 560, impulsivity: 520 };
       const y = inCol.reduce((m, n) =>
         Math.max(m, n.position.y + Math.max(n.measured?.height ?? 150, fullHeight[n.type ?? ''] ?? 0) + 30), 40);
       const position = ns.length ? { x, y } : screenToFlowPosition({ x: 300, y: 100 });

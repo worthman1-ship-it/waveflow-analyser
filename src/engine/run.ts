@@ -11,6 +11,7 @@ import { roughness } from '../dsp/roughness';
 import { fluctuationStrength } from '../dsp/fluctuation';
 import { tonality } from '../dsp/tonality';
 import { impulsivity } from '../dsp/impulsivity';
+import { loudnessTimeVarying } from '../dsp/loudnessTv';
 import type { EdgeSpec, NodeResult, NodeSpec, Signal, WavParams, WorkerOut } from './types';
 
 export class GraphRunner {
@@ -176,6 +177,13 @@ function analyse(n: NodeSpec, s: Signal, status: (t: string) => void): NodeResul
       if (s.quantity !== 'pressure') throw new Error('Roughness needs a sound-pressure signal (set the source quantity to Pa)');
       const r = roughness(s.data, s.fs, Number(p.overlap), (f) => status(`Computing… ${Math.round(f * 100)}%`));
       return { kind: 'roughness', label: s.label, ...r };
+    }
+    case 'loudnessTv': {
+      needPressure(s, 'Time-varying loudness');
+      const field = p.field === 'diffuse' ? 'diffuse' : 'free';
+      status('Filtering…');
+      const r = loudnessTimeVarying(s.data, s.fs, field, (f) => status(`Computing… ${Math.round(f * 100)}%`));
+      return { kind: 'loudnessTv', label: s.label, field, ...r };
     }
     case 'fluctuation': {
       needPressure(s, 'Fluctuation strength');

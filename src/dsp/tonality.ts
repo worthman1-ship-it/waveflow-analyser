@@ -1,5 +1,6 @@
 // Tonality: tone-to-noise ratio (TNR) and prominence ratio (PR) after ECMA-74 Annex D /
-// ISO 7779, plus an Aures-type tonality (unit: tu) from the same tone detection.
+// ISO 7779, the Nordic / ISO 1996-2 Annex D tone adjustment K_t (0–6 dB), and an Aures-type
+// tonality (unit: tu), all from the same tone detection.
 //
 // Approximations to know about:
 //  - Tones are found as local spectral maxima in a Hann-windowed power spectrum; the tone
@@ -13,13 +14,20 @@ import { fft, hann } from './fft';
 
 export interface ToneInfo {
   f: number; levelDb: number; tnr: number; pr: number; prominent: boolean;
+  /** Nordic tonal audibility ΔL_ta (dB) and tone adjustment K_t (dB). */
+  dLta: number; kt: number;
 }
+
+/** Nordtest NT ACOU 112 / ISO 1996-2 Annex D: ΔL_ta = L_pt − L_pn + 2 + lg(1 + (f/502)^2.5). */
+const tonalAudibility = (tnr: number, f: number) => tnr + 2 + Math.log10(1 + (f / 502) ** 2.5);
+const toneAdjustment = (dLta: number) => (dLta < 4 ? 0 : dLta > 10 ? 6 : dLta - 4);
 
 const cbw = (f: number) => 25 + 75 * (1 + 1.4 * (f / 1000) ** 2) ** 0.69; // critical bandwidth, Hz
 /** ECMA-74 prominence thresholds (dB). */
 const tnrLimit = (f: number) => (f >= 1000 ? 8 : 8 + 8.33 * Math.log10(1000 / f));
 const prLimit = (f: number) => (f >= 1000 ? 9 : 9 + 10 * Math.log10(1000 / f));
-const MIN_TNR = 6; // candidates below this are not reported as tones
+const MIN_TNR = 2; // candidates below this are not reported as tones
+const MIN_TNR_AURES = 6; // weaker tones do not enter the Aures tonality
 
 /** One-sided power spectrum (mean square per bin) of a Hann-windowed frame. */
 export function powerSpectrum(x: ArrayLike<number>, start: number, nfft: number, w: Float64Array, wss: number) {
@@ -32,7 +40,7 @@ export function powerSpectrum(x: ArrayLike<number>, start: number, nfft: number,
   return p;
 }
 
-export interface FrameTonality { tones: ToneInfo[]; aures: number; tnrMax: number; prMax: number; fTnr: number }
+export interface FrameTonality { tones: ToneInfo[]; aures: number; tnrMax: number; prMax: number; fTnr: number; ktMax: number }
 
 /** Detect tones in a power spectrum and evaluate TNR, PR and Aures tonality. */
 export function analyseSpectrum(p: Float64Array, fs: number, nfft: number, ref: number): FrameTonality {
@@ -77,10 +85,12 @@ export function analyseSpectrum(p: Float64Array, fs: number, nfft: number, ref: 
     const lo = bandPower(f - 1.5 * bw, f - bw / 2, false).s, hi = bandPower(f + bw / 2, f + 1.5 * bw, false).s;
     const adj = (lo > 0 && hi > 0 ? (lo + hi) / 2 : Math.max(lo, hi)) || 1e-300;
     const pr = 10 * Math.log10(centre / adj);
+    const dLta = tonalAudibility(tnr, f);
     tones.push({
       f, levelDb: 10 * Math.log10(pt / (ref * ref)), tnr, pr,
-      prominent: tnr >= tnrLimit(f) && pr >= prLimit(f),
+      prominent: tnr >= tnrLimit(f) && pr >= prLimit(f), dLta, kt: toneAdjustment(dLta),
     });
+    if (tnr < MIN_TNR_AURES) continue;
     const wi = 1 - Math.exp(-Math.min(tnr, 50) / 15);
     const wf = (1 + 0.2 * (f / 700 + 700 / f) ** 2) ** -0.5;
     wt2 += (wi * wf) ** 2;
@@ -89,12 +99,13 @@ export function analyseSpectrum(p: Float64Array, fs: number, nfft: number, ref: 
   let total = 0;
   for (let k = 1; k < nb - 1; k++) total += p[k];
   const wGr = total > 0 ? 1 - (Math.max(total - tonalPower, 0) / total) ** 0.23 : 0;
-  const aures = tones.length ? 1.09 * Math.sqrt(wt2) ** 0.29 * Math.max(wGr, 0) ** 0.79 : 0;
+  const aures = wt2 > 0 ? 1.09 * Math.sqrt(wt2) ** 0.29 * Math.max(wGr, 0) ** 0.79 : 0;
   tones.sort((a, b) => b.tnr - a.tnr);
   return {
     tones, aures,
     tnrMax: tones[0]?.tnr ?? -Infinity, fTnr: tones[0]?.f ?? 0,
     prMax: tones.length ? Math.max(...tones.map((t) => t.pr)) : -Infinity,
+    ktMax: tones.reduce((m, t) => Math.max(m, t.kt), 0),
   };
 }
 
@@ -102,6 +113,8 @@ export interface TonalityResult {
   /** Aures tonality per frame (tu) and max TNR per frame (dB). */
   K: Float32Array; tnr: Float32Array; dt: number;
   Kmean: number; Kmax: number; tnrMax: number; fTnr: number; prMax: number;
+  /** Nordic tone adjustment: from the average spectrum, and mean / max over frames (dB). */
+  kt: number; ktMean: number; ktFrameMax: number;
   /** TNR/PR figures and tones are from the whole-file average spectrum; K and the plot are per frame.
    *  Tones found in the average spectrum, strongest first (up to 8). */
   tones: ToneInfo[]; aures: number; nfft: number; frameSec: number;
@@ -116,18 +129,20 @@ export function tonality(x: Float64Array, fs: number, ref: number, nfft = 16384)
   const nFrames = 1 + Math.floor((x.length - nfft) / hop);
   const K = new Float32Array(nFrames), tnr = new Float32Array(nFrames);
   const avg = new Float64Array(nfft / 2 + 1);
-  let kMax = 0, kSum = 0;
+  let kMax = 0, kSum = 0, ktSum = 0, ktMax = 0;
   for (let f = 0; f < nFrames; f++) {
     const p = powerSpectrum(x, f * hop, nfft, w, wss);
     for (let k = 0; k < p.length; k++) avg[k] += p[k];
     const r = analyseSpectrum(p, fs, nfft, ref);
     K[f] = r.aures; tnr[f] = isFinite(r.tnrMax) ? r.tnrMax : 0;
     kSum += r.aures; kMax = Math.max(kMax, r.aures);
+    ktSum += r.ktMax; ktMax = Math.max(ktMax, r.ktMax);
   }
   for (let k = 0; k < avg.length; k++) avg[k] /= nFrames;
   const a = analyseSpectrum(avg, fs, nfft, ref);
   return {
     K, tnr, dt: hop / fs, Kmean: kSum / nFrames, Kmax: kMax, tnrMax: a.tnrMax, fTnr: a.fTnr, prMax: a.prMax,
+    kt: a.ktMax, ktMean: ktSum / nFrames, ktFrameMax: ktMax,
     tones: a.tones.slice(0, 8), aures: a.aures, nfft, frameSec: nfft / fs,
   };
 }

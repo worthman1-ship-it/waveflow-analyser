@@ -8,6 +8,7 @@ import { loudnessFromLevels, thirdOctaveLevels } from './loudness';
 import { roughness } from './roughness';
 import { fluctuationStrength } from './fluctuation';
 import { tonality } from './tonality';
+import { loudnessTimeVarying, resampleTo48k } from './loudnessTv';
 import { impulsivity } from './impulsivity';
 
 const sine = (f: number, amp: number, fs: number, sec: number) =>
@@ -169,12 +170,14 @@ describe('tonality', () => {
     expect(r.tnrMax).toBeGreaterThan(30);
     expect(r.fTnr).toBeCloseTo(1000, -1);
     expect(r.tones[0].prominent).toBe(true);
+    expect(r.kt).toBe(6); // ΔLta ≫ 10 dB → maximum Nordic adjustment
   });
   it('white noise is not tonal', () => {
     const x = noise(48000 * 3).map((v) => v * 0.02);
     const r = tonality(x, 48000, REF);
     expect(r.Kmean).toBeLessThan(0.1);
     expect(r.tones.filter((t) => t.prominent).length).toBe(0);
+    expect(r.kt).toBe(0);
   });
 });
 
@@ -187,5 +190,34 @@ describe('impulsivity', () => {
     for (let k = 0; k < 4; k++) for (let i = 0; i < 48; i++) clicks[(k * 48000) + 12000 + i] = Math.sin((2 * Math.PI * 1000 * i) / 48000) * 5;
     const b = impulsivity(clicks, 48000, REF, 5);
     expect(b.diff).toBeGreaterThan(4.5); // short burst: ≈ 10·log(125 ms / 35 ms) = 5.5 dB
+  });
+});
+
+describe('time-varying loudness (ISO 532-1)', () => {
+  it('stationary 1 kHz: 40 dB → 1 sone, 60 dB → ~4 sone', () => {
+    const a = loudnessTimeVarying(sine(1000, pa(40), 48000, 2), 48000, 'free');
+    expect(a.N[Math.floor(a.N.length * 0.9)]).toBeGreaterThan(0.95);
+    expect(a.N[Math.floor(a.N.length * 0.9)]).toBeLessThan(1.05);
+    const b = loudnessTimeVarying(sine(1000, pa(60), 48000, 2), 48000, 'free');
+    const v = b.N[Math.floor(b.N.length * 0.9)];
+    expect(v).toBeGreaterThan(3.8);
+    expect(v).toBeLessThan(4.4);
+  });
+  it('a 100 ms burst is quieter than the same tone sustained, and loudness decays after it', () => {
+    const fs = 48000, x = sine(1000, pa(60), fs, 1.5);
+    for (let i = Math.round(0.6 * fs); i < x.length; i++) x[i] = 0;
+    for (let i = 0; i < Math.round(0.5 * fs); i++) x[i] = 0;
+    const r = loudnessTimeVarying(x, fs, 'free');
+    const sustained = loudnessTimeVarying(sine(1000, pa(60), fs, 1.5), fs, 'free');
+    expect(r.Nmax).toBeLessThan(sustained.Nmax);
+    expect(r.Nmax).toBeGreaterThan(1.5);
+    expect(r.N[Math.round(1.4 / 0.002)]).toBeLessThan(0.05 * r.Nmax);
+  });
+  it('resampling keeps a tone intact', () => {
+    const y = resampleTo48k(sine(1000, 1, 44100, 0.2), 44100);
+    expect(y.length).toBe(9600);
+    const z = y.subarray(2000, 7000);
+    expect(Math.max(...z)).toBeGreaterThan(0.98);
+    expect(Math.max(...z)).toBeLessThan(1.02);
   });
 });

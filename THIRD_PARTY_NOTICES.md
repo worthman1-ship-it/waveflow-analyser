@@ -8,3 +8,5 @@ https://github.com/Eomys/MoSQITo, licensed under the Apache License, Version 2.0
 Changes made in the port: rewritten in TypeScript; scalar (per-frame) formulation of the
 loudness slope calculation; own third-octave filter bank; roughness frame length rounded
 to a power of two and bin frequency taken as k·fs/n.
+
+src/dsp/iso532Tables.ts and src/dsp/loudnessTv.ts also follow MoSQITo's time-varying loudness (loudness_zwtv: filter tables, non-linear decay, temporal weighting), Apache-2.0.

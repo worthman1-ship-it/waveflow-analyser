@@ -219,6 +219,36 @@ export function LoudnessNode({ id, data }: NodeProps) {
   );
 }
 
+// ───────────────────────── Loudness, time-varying ─────────────────────────
+export function LoudnessTvNode({ id, data }: NodeProps) {
+  const d = data as Data;
+  const set = useParams(id);
+  const r = useGraph().results[id];
+  const res = r?.kind === 'loudnessTv' ? r : undefined;
+  return (
+    <Shell id={id} title="Loudness, time-varying (ISO 532-1)" accent="#d94f8b" input>
+      <Field label="Field">
+        <select className="nodrag" value={String(d.field)} onChange={(e) => set({ field: e.target.value })}>
+          <option value="free">Free</option><option value="diffuse">Diffuse</option>
+        </select>
+      </Field>
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>N max</td><td>{res.Nmax.toFixed(2)} sone @ {res.tNmax.toFixed(2)} s ({res.LNmax.toFixed(1)} phon)</td></tr>
+              <tr><td>N mean</td><td>{res.Nmean.toFixed(2)} sone</td></tr>
+              <tr><td>N5 / N10 / N50 / N95</td><td>{res.N5.toFixed(2)} / {res.N10.toFixed(2)} / {res.N50.toFixed(2)} / {res.N95.toFixed(2)} sone</td></tr>
+            </tbody>
+          </table>
+          <LinePlot yLabel="sone" height={120} series={[{ label: 'N(t)', data: res.N, dt: res.dt, color: SERIES[0] }]} />
+          <div className="hint">Resolution 2 ms; resampled to 48 kHz as the standard requires. Nx = loudness exceeded in x % of the time.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
 // ───────────────────────── Roughness ─────────────────────────
 export function RoughnessNode({ id, data }: NodeProps) {
   const d = data as Data;
@@ -278,7 +308,7 @@ export function TonalityNode({ id, data }: NodeProps) {
   const r = useGraph().results[id];
   const res = r?.kind === 'tonality' ? r : undefined;
   return (
-    <Shell id={id} title="Tonality (TNR, PR, Aures)" accent="#1baf7a" input>
+    <Shell id={id} title="Tonality (Nordic, TNR, PR, Aures)" accent="#1baf7a" input>
       <Field label="FFT size">
         <select className="nodrag" value={Number(d.nfft)} onChange={(e) => set({ nfft: Number(e.target.value) })}>
           {[4096, 8192, 16384, 32768].map((n) => <option key={n} value={n}>{n}</option>)}
@@ -291,20 +321,22 @@ export function TonalityNode({ id, data }: NodeProps) {
               <tr><td>Tonality (Aures), mean / max</td><td>{res.Kmean.toFixed(2)} / {res.Kmax.toFixed(2)} tu</td></tr>
               <tr><td>Max TNR</td><td>{isFinite(res.tnrMax) ? `${res.tnrMax.toFixed(1)} dB @ ${res.fTnr.toFixed(0)} Hz` : 'no tones'}</td></tr>
               <tr><td>Max PR</td><td>{isFinite(res.prMax) ? `${res.prMax.toFixed(1)} dB` : '–'}</td></tr>
+              <tr><td>Nordic K<sub>t</sub> (avg spectrum)</td><td><b>{res.kt.toFixed(1)} dB</b></td></tr>
+              <tr><td>K<sub>t</sub> per frame, mean / max</td><td>{res.ktMean.toFixed(1)} / {res.ktFrameMax.toFixed(1)} dB</td></tr>
             </tbody>
           </table>
           {res.tones.length > 0 && (
             <table className="results">
-              <thead><tr><th>Tone</th><th>Level</th><th>TNR</th><th>PR</th><th>Prominent</th></tr></thead>
+              <thead><tr><th>Tone</th><th>Level</th><th>TNR</th><th>PR</th><th>ΔL<sub>ta</sub></th><th>K<sub>t</sub></th><th>Prominent</th></tr></thead>
               <tbody>
                 {res.tones.map((t) => (
-                  <tr key={t.f}><td>{t.f.toFixed(0)} Hz</td><td>{t.levelDb.toFixed(1)}</td><td>{t.tnr.toFixed(1)}</td><td>{t.pr.toFixed(1)}</td><td>{t.prominent ? 'yes' : 'no'}</td></tr>
+                  <tr key={t.f}><td>{t.f.toFixed(0)} Hz</td><td>{t.levelDb.toFixed(1)}</td><td>{t.tnr.toFixed(1)}</td><td>{t.pr.toFixed(1)}</td><td>{t.dLta.toFixed(1)}</td><td>{t.kt.toFixed(1)}</td><td>{t.prominent ? 'yes' : 'no'}</td></tr>
                 ))}
               </tbody>
             </table>
           )}
           <LinePlot yLabel="tu" height={110} series={[{ label: 'K(t)', data: res.K, dt: res.dt, x0: res.frameSec / 2, color: SERIES[0] }]} />
-          <div className="hint">Tones from the average spectrum ({res.frameSec.toFixed(2)} s frames); prominence limits per ECMA-74 (TNR ≥ 8 dB, PR ≥ 9 dB above 1 kHz). Aures value is approximate.</div>
+          <div className="hint">Tones from the average spectrum ({res.frameSec.toFixed(2)} s frames); prominence limits per ECMA-74 (TNR ≥ 8 dB, PR ≥ 9 dB above 1 kHz). Nordic K_t after Nordtest NT ACOU 112 / ISO 1996-2 Annex D. Aures value is approximate.</div>
         </>
       )}
     </Shell>
@@ -347,6 +379,7 @@ export const nodeTypes = {
   spectrogram: SpectrogramNode,
   loudness: LoudnessNode,
   roughness: RoughnessNode,
+  loudnessTv: LoudnessTvNode,
   fluctuation: FluctuationNode,
   tonality: TonalityNode,
   impulsivity: ImpulsivityNode,
@@ -358,8 +391,9 @@ export const PALETTE: { type: NodeKind; label: string; defaults: Data }[] = [
   { type: 'level', label: 'Fast / Slow max level', defaults: {} },
   { type: 'spectrogram', label: 'Moving FFT', defaults: { nfft: 4096, overlap: 0.5, fMax: 0, uiRange: 60 } },
   { type: 'loudness', label: 'Loudness & sharpness', defaults: { field: 'free', blockSec: 0.1 } },
+  { type: 'loudnessTv', label: 'Loudness, time-varying (ISO 532-1)', defaults: { field: 'free' } },
   { type: 'roughness', label: 'Roughness', defaults: { overlap: 0.5 } },
   { type: 'fluctuation', label: 'Fluctuation strength', defaults: {} },
-  { type: 'tonality', label: 'Tonality (TNR, PR, Aures)', defaults: { nfft: 16384 } },
+  { type: 'tonality', label: 'Tonality (Nordic, TNR, PR, Aures)', defaults: { nfft: 16384 } },
   { type: 'impulsivity', label: 'Impulsiveness (LAI − LAF)', defaults: {} },
 ];
