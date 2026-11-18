@@ -14,6 +14,7 @@ Browser app for evaluating WAV recordings with a node graph (React Flow). Wire
 | Roughness (ECMA-418-2) | Sottek hearing-model roughness (asper<sub>HMS</sub>): R(t) at 50 Hz, single value R (90th percentile) and specific roughness per Bark. Reproduces the standard's calibration (1 kHz, 60 dB, 100 % AM at 70 Hz = 1 asper: 0.99999 here) and the 0.3735 specific value of band 17. Needs ≥ 1 s of Pa. |
 | Roughness | Daniel & Weber model, per ~0.2 s frame. Needs Pa. |
 | Fluctuation strength | Slow loudness modulation (0.5–20 Hz) in vacil, 2 s windows. Simplified Fastl model scaled to 1 kHz / 60 dB / 100 % AM 4 Hz = 1 vacil. Needs Pa, fs ≥ 32 kHz. |
+| Fluctuation strength (ECMA-418-2) | Sottek hearing-model fluctuation strength (vacil<sub>HMS</sub>) from clause 9.1: envelope analysis windows, high-resolution spectral analysis of the 0–35 Hz envelope spectrum, harmonic analysis, HSA-based loudness scaling. F(t) at 50 Hz, single value F (90th percentile), specific F′ per Bark. 1 kHz, 60 dB, 100 % AM at 4 Hz reads 1.004 vacil. Needs ≥ 2 s of Pa. |
 | Tonality (ECMA-418-2) | Sottek hearing-model tonality (tu<sub>HMS</sub>), written from the published standard (clause 6.2), not from any GPL code: T(t) at 187.5 Hz, single value T, specific tonality per Bark and the prominent components (T′ > 0.4). A 1 kHz, 40 dB tone gives 0.99998 tu. Needs ≥ 0.5 s of Pa; about 1 s of compute per second of audio. |
 | Tonality | Tone-to-noise ratio and prominence ratio per ECMA-74, the Nordic (Nordtest NT ACOU 112 / ISO 1996-2 Annex D) tonal audibility and tone adjustment K<sub>t</sub> (0–6 dB), a tone table, and an Aures-type tonality in tu. Needs Pa. |
 | Impulsiveness | L<sub>AF,max</sub>, L<sub>AI,max</sub> and their difference, L<sub>Aeq</sub>, peak, crest factor. A-weights internally, so connect the unweighted signal. Needs Pa. |
@@ -38,7 +39,8 @@ npm run build    # static build in dist/
 - Roughness frames are the power of two nearest 0.2 s (171 ms at 48 kHz).
 - - Fluctuation strength, tonality (Aures part) and the loudness ratio inside it are approximations calibrated to their reference definitions, not ports of a standard's reference code. TNR/PR use the average spectrum; thresholds follow ECMA-74.
 - Time-varying loudness is a port of the ISO 532-1 method via MoSQITo; it has not been checked against the standard's Annex B reference signals (tests: 1 kHz 40 dB → 1 sone, 60 dB → ~4 sone, burst decay). Per-block loudness in the older loudness node is still the stationary method.
-- Not included: ECMA-418-2 fluctuation strength, articulation index.
+- ECMA-418-2 fluctuation strength: written from the standard text. Formula (159) is applied with the analysis-window length in place of s̃b (2048); with the literal s̃b the calibration signal reads 1.06 vacil, with the window length 1.004. The standard's other formulas were followed literally; no reference output was available to check beyond the calibration signal.
+- Not included: articulation index.
 - Checks in `src/dsp/dsp.test.ts`: 1 kHz 40 dB → 1.0 sone; 1 kHz 60 dB → ~4 sone and ~1 acum; 1 kHz 60 dB 70 Hz AM → ~0.9 asper; weighting table points; Fast/Slow burst response; VDV; FFT scaling.
 
 Loudness/roughness tables are ported from MoSQITo (Apache-2.0); see `THIRD_PARTY_NOTICES.md`.

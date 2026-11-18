@@ -8,6 +8,7 @@ import { loudnessFromLevels, thirdOctaveLevels } from './loudness';
 import { roughness } from './roughness';
 import { roughnessEcma } from './roughnessEcma';
 import { tonalityEcma } from './tonalityEcma';
+import { fluctuationEcma } from './fluctuationEcma';
 import { fluctuationStrength } from './fluctuation';
 import { tonality } from './tonality';
 import { loudnessTimeVarying, resampleTo48k } from './loudnessTv';
@@ -271,5 +272,29 @@ describe('ECMA-418-2 tonality', () => {
     const rm = tonalityEcma(mix, 48000, 'free');
     expect(rn.T).toBeLessThan(0.1);
     expect(rm.T).toBeGreaterThan(0.4);
+  });
+});
+
+describe('ECMA-418-2 fluctuation strength', () => {
+  const am = (fmod: number, db: number, sec: number) => {
+    const fs = 48000;
+    const x = Float64Array.from({ length: fs * sec }, (_, i) =>
+      (1 + Math.sin(2 * Math.PI * fmod * (i / fs) - Math.PI / 2)) * Math.sin(2 * Math.PI * 1000 * (i / fs)));
+    let ms = 0;
+    for (const v of x) ms += v * v;
+    const g = (REF * 10 ** (db / 20)) / Math.sqrt(ms / x.length);
+    return x.map((v) => v * g);
+  };
+  it('calibration tone (1 kHz, 60 dB, m = 1, 4 Hz) gives 1 vacil', { timeout: 300000 }, () => {
+    const r = fluctuationEcma(am(4, 60, 10), 48000);
+    expect(r.F).toBeGreaterThan(0.99);
+    expect(r.F).toBeLessThan(1.01);
+  });
+  it('is selective for slow modulation and zero for a steady tone', { timeout: 300000 }, () => {
+    const f4 = fluctuationEcma(am(4, 60, 6), 48000).F;
+    const f20 = fluctuationEcma(am(20, 60, 6), 48000).F;
+    const steady = fluctuationEcma(sine(1000, pa(60), 48000, 6), 48000).F;
+    expect(f20).toBeLessThan(0.3 * f4);
+    expect(steady).toBeLessThan(0.02);
   });
 });

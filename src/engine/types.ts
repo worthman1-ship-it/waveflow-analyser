@@ -5,6 +5,7 @@ import type { ImpulsivityResult } from '../dsp/impulsivity';
 import type { LoudnessTvResult } from '../dsp/loudnessTv';
 import type { RoughnessEcmaResult } from '../dsp/roughnessEcma';
 import type { TonalityEcmaResult } from '../dsp/tonalityEcma';
+import type { FluctuationEcmaResult } from '../dsp/fluctuationEcma';
 
 export type Quantity = 'acceleration' | 'velocity' | 'displacement' | 'pressure' | 'other';
 
@@ -23,7 +24,7 @@ export interface SpectrogramParams { nfft: number; overlap: number; range: numbe
 export interface LoudnessParams { field: 'free' | 'diffuse'; blockSec: number }
 export interface RoughnessParams { overlap: number }
 
-export type NodeKind = 'wavSource' | 'weighting' | 'level' | 'spectrogram' | 'loudness' | 'roughness' | 'fluctuation' | 'tonality' | 'impulsivity' | 'loudnessTv' | 'roughnessEcma' | 'tonalityEcma';
+export type NodeKind = 'wavSource' | 'weighting' | 'level' | 'spectrogram' | 'loudness' | 'roughness' | 'fluctuation' | 'tonality' | 'impulsivity' | 'loudnessTv' | 'roughnessEcma' | 'tonalityEcma' | 'fluctuationEcma';
 
 export interface NodeSpec { id: string; type: NodeKind; params: Record<string, unknown> }
 export interface EdgeSpec { source: string; target: string }
@@ -69,10 +70,11 @@ export type ImpulsivityResultMsg = ImpulsivityResult & { kind: 'impulsivity'; la
 export type LoudnessTvResultMsg = LoudnessTvResult & { kind: 'loudnessTv'; label: string; field: string };
 export type RoughnessEcmaResultMsg = RoughnessEcmaResult & { kind: 'roughnessEcma'; label: string; field: string };
 export type TonalityEcmaResultMsg = TonalityEcmaResult & { kind: 'tonalityEcma'; label: string; field: string };
+export type FluctuationEcmaResultMsg = FluctuationEcmaResult & { kind: 'fluctuationEcma'; label: string; field: string };
 export interface SourceResult {
   kind: 'source'; fs: number; channels: number; duration: number; bits: number; format: string; peak: number;
 }
-export type NodeResult = LevelResult | SpectrogramResult | LoudnessResult | RoughnessResultMsg | FluctuationResultMsg | TonalityResultMsg | ImpulsivityResultMsg | LoudnessTvResultMsg | RoughnessEcmaResultMsg | TonalityEcmaResultMsg | SourceResult;
+export type NodeResult = LevelResult | SpectrogramResult | LoudnessResult | RoughnessResultMsg | FluctuationResultMsg | TonalityResultMsg | ImpulsivityResultMsg | LoudnessTvResultMsg | RoughnessEcmaResultMsg | TonalityEcmaResultMsg | FluctuationEcmaResultMsg | SourceResult;
 
 export type WorkerIn =
   | { type: 'file'; fileId: string; buffer: ArrayBuffer }

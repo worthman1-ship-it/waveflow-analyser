@@ -14,6 +14,7 @@ import { impulsivity } from '../dsp/impulsivity';
 import { loudnessTimeVarying } from '../dsp/loudnessTv';
 import { roughnessEcma } from '../dsp/roughnessEcma';
 import { tonalityEcma } from '../dsp/tonalityEcma';
+import { fluctuationEcma } from '../dsp/fluctuationEcma';
 import type { EdgeSpec, NodeResult, NodeSpec, Signal, WavParams, WorkerOut } from './types';
 
 export class GraphRunner {
@@ -192,6 +193,12 @@ function analyse(n: NodeSpec, s: Signal, status: (t: string) => void): NodeResul
       const field = p.field === 'diffuse' ? 'diffuse' : 'free';
       const r = roughnessEcma(s.data, s.fs, field, (f) => status(`Computing… ${Math.round(f * 100)}%`));
       return { kind: 'roughnessEcma', label: s.label, field, ...r };
+    }
+    case 'fluctuationEcma': {
+      needPressure(s, 'ECMA-418-2 fluctuation strength');
+      const field = p.field === 'diffuse' ? 'diffuse' : 'free';
+      const r = fluctuationEcma(s.data, s.fs, field, (f) => status(`Computing… ${Math.round(f * 100)}%`));
+      return { kind: 'fluctuationEcma', label: s.label, field, ...r };
     }
     case 'tonalityEcma': {
       needPressure(s, 'ECMA-418-2 tonality');

@@ -23,3 +23,5 @@ src/dsp/sottekHms.ts and src/dsp/roughnessEcma.ts follow ecma418-torch (https://
   Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
 
 src/dsp/tonalityEcma.ts is written from the text of ECMA-418-2 (4th ed., 2025) clause 6.2; it reuses the front end above and contains no code from the GPL-licensed implementations.
+
+src/dsp/fluctuationEcma.ts is written from the text of ECMA-418-2 (4th ed., 2025) clause 9.1 and reuses the front end above (and the pchip routine in roughnessEcma.ts).

@@ -295,6 +295,37 @@ export function RoughnessEcmaNode({ id, data }: NodeProps) {
   );
 }
 
+// ───────────────────────── Fluctuation strength, ECMA-418-2 ─────────────────────────
+export function FluctuationEcmaNode({ id, data }: NodeProps) {
+  const d = data as Data;
+  const set = useParams(id);
+  const r = useGraph().results[id];
+  const res = r?.kind === 'fluctuationEcma' ? r : undefined;
+  return (
+    <Shell id={id} title="Fluctuation (ECMA-418-2, Sottek)" accent="#0f766e" input>
+      <Field label="Field">
+        <select className="nodrag" value={String(d.field)} onChange={(e) => set({ field: e.target.value })}>
+          <option value="free">Free</option><option value="diffuse">Diffuse</option>
+        </select>
+      </Field>
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>F (90th percentile)</td><td><b>{res.F.toFixed(3)} vacil<sub>HMS</sub></b></td></tr>
+              <tr><td>F max</td><td>{res.max.toFixed(3)} vacil<sub>HMS</sub></td></tr>
+              <tr><td>Prominent (F &gt; 0.2)</td><td>{res.F > 0.2 ? 'yes' : 'no'}</td></tr>
+            </tbody>
+          </table>
+          <LinePlot yLabel="vacil" height={110} series={[{ label: 'F(t)', data: res.Ft, dt: res.dt, color: SERIES[0] }]} />
+          <LinePlot yLabel="vacil/Bark" xLabel="Bark" height={110} series={[{ label: 'F′(z), time average', data: res.specific, dt: 0.5, x0: 0.25, color: SERIES[1] }]} />
+          <div className="hint">Hearing-model fluctuation strength: 1 kHz, 60 dB, 100 % AM at 4 Hz = 1 vacil (reads 1.00 here). Needs ≥ 2 s of Pa; about 1–2 s of compute per second of audio. The first 0.7 s are excluded from the statistics.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
 // ───────────────────────── Tonality, ECMA-418-2 ─────────────────────────
 export function TonalityEcmaNode({ id, data }: NodeProps) {
   const d = data as Data;
@@ -462,6 +493,7 @@ export const nodeTypes = {
   loudnessTv: LoudnessTvNode,
   roughnessEcma: RoughnessEcmaNode,
   tonalityEcma: TonalityEcmaNode,
+  fluctuationEcma: FluctuationEcmaNode,
   fluctuation: FluctuationNode,
   tonality: TonalityNode,
   impulsivity: ImpulsivityNode,
@@ -477,6 +509,7 @@ export const PALETTE: { type: NodeKind; label: string; defaults: Data }[] = [
   { type: 'roughnessEcma', label: 'Roughness (ECMA-418-2)', defaults: { field: 'free' } },
   { type: 'tonalityEcma', label: 'Tonality (ECMA-418-2)', defaults: { field: 'free' } },
   { type: 'roughness', label: 'Roughness', defaults: { overlap: 0.5 } },
+  { type: 'fluctuationEcma', label: 'Fluctuation strength (ECMA-418-2)', defaults: { field: 'free' } },
   { type: 'fluctuation', label: 'Fluctuation strength', defaults: {} },
   { type: 'tonality', label: 'Tonality (Nordic, TNR, PR, Aures)', defaults: { nfft: 16384 } },
   { type: 'impulsivity', label: 'Impulsiveness (LAI − LAF)', defaults: {} },
