@@ -7,6 +7,7 @@ import '@xyflow/react/dist/style.css';
 import { nodeTypes, PALETTE } from './nodes/nodes';
 import { GraphContext, type GraphState } from './ui/context';
 import { parseWav } from './dsp/wav';
+import { setClip } from './ui/player';
 import { allWavKeys, deleteWav, getWav, putWav } from './ui/wavStore';
 import { downloadGraph, loadAutosave, parseGraph, writeAutosave } from './ui/graphFile';
 import type { NodeKind, NodeResult, NodeSpec, WorkerIn, WorkerOut } from './engine/types';
@@ -94,7 +95,7 @@ export default function App() {
 
   /** Swap in a different graph: forget results and the WAV data held by the worker. */
   const replaceGraph = (g: { nodes: Node[]; edges: Edge[] }) => {
-    for (const n of nodes) if (n.data.fileId) post({ type: 'dropFile', fileId: n.data.fileId as string });
+    for (const n of nodes) if (n.data.fileId) { post({ type: 'dropFile', fileId: n.data.fileId as string }); setClip(n.id, undefined); }
     setResults({}); setStatus({}); setErrors({}); setGraphError(undefined);
     setNodes(g.nodes);
     setEdges(g.edges);
@@ -120,6 +121,7 @@ export default function App() {
       const fileId = `${name}:${crypto.randomUUID()}`;
       if (oldFileId) post({ type: 'dropFile', fileId: oldFileId });
       post({ type: 'file', fileId, buffer: buf }, [buf]);
+      setClip(nodeId, { fs: w.fs, channels: w.channels });
       setErrors((s) => ({ ...s, [nodeId]: undefined }));
       updateNodeData(nodeId, {
         fileId, fileName: name, ...(resetChannel ? { channel: 0 } : {}),
@@ -172,7 +174,7 @@ export default function App() {
       const x = type === 'wavSource' ? 20 : type === 'weighting' ? 340 : 700;
       const inCol = ns.filter((n) => Math.abs(n.position.x - x) < 150);
       // Reserve the height a node reaches once its results are shown, so it won't overlap later.
-      const fullHeight: Record<string, number> = { level: 400, spectrogram: 560, loudness: 500, loudnessTv: 400, roughness: 320, fluctuation: 360, tonality: 560, impulsivity: 520 };
+      const fullHeight: Record<string, number> = { level: 400, spectrogram: 560, loudness: 500, loudnessTv: 400, roughnessEcma: 520, roughness: 320, fluctuation: 360, tonality: 560, impulsivity: 520 };
       const y = inCol.reduce((m, n) =>
         Math.max(m, n.position.y + Math.max(n.measured?.height ?? 150, fullHeight[n.type ?? ''] ?? 0) + 30), 40);
       const position = ns.length ? { x, y } : screenToFlowPosition({ x: 300, y: 100 });
@@ -209,7 +211,7 @@ export default function App() {
         <main>
           <ReactFlow
             nodes={nodes} edges={edges} nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange} onNodesDelete={(ns) => ns.forEach((n) => deleteWav(n.id))} onEdgesChange={onEdgesChange} onConnect={onConnect}
+            onNodesChange={onNodesChange} onNodesDelete={(ns) => ns.forEach((n) => { deleteWav(n.id); setClip(n.id, undefined); })} onEdgesChange={onEdgesChange} onConnect={onConnect}
             fitView minZoom={0.2} deleteKeyCode={['Delete', 'Backspace']}
           >
             <Background gap={20} />

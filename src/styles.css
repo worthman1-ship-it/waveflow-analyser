@@ -58,3 +58,5 @@ table.results td:first-child { text-align: left; color: var(--ink-2); }
 .readout { font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; min-height: 14px; }
 .colorbar { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-2); margin-top: 4px; }
 .colorbar i { flex: 1; height: 8px; border-radius: 2px; }
+.node button.play { padding: 4px 10px; border: 1px solid var(--line); background: white; border-radius: 6px; cursor: pointer; font: inherit; align-self: flex-end; }
+.node button.play:hover { border-color: var(--accent); }

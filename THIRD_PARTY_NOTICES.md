@@ -10,3 +10,14 @@ loudness slope calculation; own third-octave filter bank; roughness frame length
 to a power of two and bin frequency taken as k·fs/n.
 
 src/dsp/iso532Tables.ts and src/dsp/loudnessTv.ts also follow MoSQITo's time-varying loudness (loudness_zwtv: filter tables, non-linear decay, temporal weighting), Apache-2.0.
+
+src/dsp/sottekHms.ts and src/dsp/roughnessEcma.ts follow ecma418-torch (https://github.com/agrathwohl/ecma418-torch), MIT licence:
+
+  Copyright 2026 Andrew A. Grathwohl
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+  documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+  the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and
+  to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above
+  copyright notice and this permission notice shall be included in all copies or substantial portions of the
+  Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.

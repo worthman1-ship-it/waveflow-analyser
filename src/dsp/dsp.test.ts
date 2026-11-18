@@ -6,6 +6,7 @@ import { rms, timeWeighted, toDb, vdv } from './levels';
 import { spectrogram } from './spectrogram';
 import { loudnessFromLevels, thirdOctaveLevels } from './loudness';
 import { roughness } from './roughness';
+import { roughnessEcma } from './roughnessEcma';
 import { fluctuationStrength } from './fluctuation';
 import { tonality } from './tonality';
 import { loudnessTimeVarying, resampleTo48k } from './loudnessTv';
@@ -219,5 +220,27 @@ describe('time-varying loudness (ISO 532-1)', () => {
     const z = y.subarray(2000, 7000);
     expect(Math.max(...z)).toBeGreaterThan(0.98);
     expect(Math.max(...z)).toBeLessThan(1.02);
+  });
+});
+
+describe('ECMA-418-2 roughness', () => {
+  // 1 kHz carrier, 100 % AM at 70 Hz starting at its minimum, 60 dB SPL: 1 asper_HMS by definition.
+  const cal = (sec: number) => {
+    const fs = 48000;
+    const x = Float64Array.from({ length: fs * sec }, (_, i) =>
+      (1 + Math.sin(2 * Math.PI * 70 * (i / fs) - Math.PI / 2)) * Math.sin(2 * Math.PI * 1000 * (i / fs)));
+    let ms = 0;
+    for (const v of x) ms += v * v;
+    const g = (REF * 10 ** (60 / 20)) / Math.sqrt(ms / x.length);
+    return x.map((v) => v * g);
+  };
+  it('calibration tone gives 1 asper', { timeout: 120000 }, () => {
+    const r = roughnessEcma(cal(10), 48000);
+    expect(r.R).toBeGreaterThan(0.9999);
+    expect(r.R).toBeLessThan(1.0001);
+    expect(r.specific[17]).toBeCloseTo(0.374, 2);
+  });
+  it('an unmodulated tone is not rough', { timeout: 60000 }, () => {
+    expect(roughnessEcma(sine(1000, pa(60), 48000, 2), 48000).R).toBeLessThan(0.05);
   });
 });

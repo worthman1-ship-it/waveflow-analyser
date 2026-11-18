@@ -1,5 +1,6 @@
 import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react';
-import type { ReactNode } from 'react';
+import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
+import { play, playingNode, stop as stopPlayback, subscribe } from '../ui/player';
 import { useGraph } from '../ui/context';
 import { Heatmap, LinePlot, SERIES } from '../ui/plots';
 import { WEIGHTINGS } from '../dsp/weighting';
@@ -46,6 +47,9 @@ export function WavSourceNode({ id, data }: NodeProps) {
   const { loadFile } = useGraph();
   const info = d.info as WavInfo | undefined;
   const q = d.quantity as Quantity;
+  const playing = useSyncExternalStore(subscribe, playingNode) === id;
+  useEffect(() => () => { if (playingNode() === id) stopPlayback(); }, [id]);
+  const vol = typeof d.uiVolume === 'number' ? d.uiVolume : 0.5;
   return (
     <Shell id={id} title="WAV file" accent="#2a78d6" output>
       <input className="nodrag" type="file" accept=".wav,audio/wav"
@@ -57,6 +61,18 @@ export function WavSourceNode({ id, data }: NodeProps) {
         <div className="info">
           <b>{String(d.fileName)}</b><br />
           {info.fs} Hz · {info.channels} ch · {info.bits}-bit {info.format} · {info.duration.toFixed(2)} s
+        </div>
+      )}
+      {info && (
+        <div className="row">
+          <button className="nodrag play" onClick={() => (playing ? stopPlayback() : play(id, Number(d.channel), vol ** 2))}>
+            {playing ? '■ Stop' : '▶ Play'}
+          </button>
+          <label className="field">
+            <span>Volume</span>
+            <input className="nodrag" type="range" min={0} max={1} step={0.05} value={vol}
+              onChange={(e) => set({ uiVolume: Number(e.target.value) })} />
+          </label>
         </div>
       )}
       {info && info.channels > 1 && (
@@ -249,6 +265,36 @@ export function LoudnessTvNode({ id, data }: NodeProps) {
   );
 }
 
+// ───────────────────────── Roughness, ECMA-418-2 ─────────────────────────
+export function RoughnessEcmaNode({ id, data }: NodeProps) {
+  const d = data as Data;
+  const set = useParams(id);
+  const r = useGraph().results[id];
+  const res = r?.kind === 'roughnessEcma' ? r : undefined;
+  return (
+    <Shell id={id} title="Roughness (ECMA-418-2, Sottek)" accent="#c2410c" input>
+      <Field label="Field">
+        <select className="nodrag" value={String(d.field)} onChange={(e) => set({ field: e.target.value })}>
+          <option value="free">Free</option><option value="diffuse">Diffuse</option>
+        </select>
+      </Field>
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>R (90th percentile)</td><td><b>{res.R.toFixed(3)} asper<sub>HMS</sub></b></td></tr>
+              <tr><td>R max</td><td>{res.max.toFixed(3)} asper<sub>HMS</sub></td></tr>
+            </tbody>
+          </table>
+          <LinePlot yLabel="asper" height={110} series={[{ label: 'R(t)', data: res.Rt, dt: res.dt, color: SERIES[0] }]} />
+          <LinePlot yLabel="asper/Bark" xLabel="Bark" height={110} series={[{ label: 'R′(z), time average', data: res.specific, dt: 0.5, x0: 0.25, color: SERIES[1] }]} />
+          <div className="hint">Hearing-model roughness: 1 kHz, 60 dB, 100 % AM at 70 Hz = 1 asper. Needs ≥ 1 s of Pa. The first 0.32 s are excluded from the statistics.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
 // ───────────────────────── Roughness ─────────────────────────
 export function RoughnessNode({ id, data }: NodeProps) {
   const d = data as Data;
@@ -380,6 +426,7 @@ export const nodeTypes = {
   loudness: LoudnessNode,
   roughness: RoughnessNode,
   loudnessTv: LoudnessTvNode,
+  roughnessEcma: RoughnessEcmaNode,
   fluctuation: FluctuationNode,
   tonality: TonalityNode,
   impulsivity: ImpulsivityNode,
@@ -392,6 +439,7 @@ export const PALETTE: { type: NodeKind; label: string; defaults: Data }[] = [
   { type: 'spectrogram', label: 'Moving FFT', defaults: { nfft: 4096, overlap: 0.5, fMax: 0, uiRange: 60 } },
   { type: 'loudness', label: 'Loudness & sharpness', defaults: { field: 'free', blockSec: 0.1 } },
   { type: 'loudnessTv', label: 'Loudness, time-varying (ISO 532-1)', defaults: { field: 'free' } },
+  { type: 'roughnessEcma', label: 'Roughness (ECMA-418-2)', defaults: { field: 'free' } },
   { type: 'roughness', label: 'Roughness', defaults: { overlap: 0.5 } },
   { type: 'fluctuation', label: 'Fluctuation strength', defaults: {} },
   { type: 'tonality', label: 'Tonality (Nordic, TNR, PR, Aures)', defaults: { nfft: 16384 } },
