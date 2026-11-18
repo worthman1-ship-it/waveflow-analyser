@@ -20,7 +20,7 @@ const BAND_BW = BAND_FC.map((f) => Math.sqrt(DF0 ** 2 + (C_BARK * f) ** 2)); // 
 const EULER = [1, 11, 11, 1];
 
 /** Table 1: (b0, b1, b2, a1, a2) per second-order section. */
-const EAR_SOS: Sos = ([
+export const EAR_SOS: Sos = ([
   [1.015896, -1.925299, 0.922118, -1.925299, 0.938014],
   [0.958943, -1.806088, 0.876439, -1.806088, 0.835382],
   [0.961372, -1.763632, 0.821788, -1.763632, 0.783160],
@@ -52,7 +52,7 @@ export function basisLoudness(p: number, band: number): number {
 }
 
 /** One band of the auditory filter bank applied to x (real in, real out). */
-function bandFilter(x: Float64Array, band: number): Float64Array {
+export function bandFilter(x: Float64Array, band: number): Float64Array {
   const order = 5;
   const tau = (70 / 512) / BAND_BW[band]; // C(2k-2, k-1) / 2^(2k-1) / BW
   const d = Math.exp(-1 / (FS * tau));

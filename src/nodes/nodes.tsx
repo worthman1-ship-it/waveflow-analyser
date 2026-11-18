@@ -295,6 +295,40 @@ export function RoughnessEcmaNode({ id, data }: NodeProps) {
   );
 }
 
+// ───────────────────────── Tonality, ECMA-418-2 ─────────────────────────
+export function TonalityEcmaNode({ id, data }: NodeProps) {
+  const d = data as Data;
+  const set = useParams(id);
+  const r = useGraph().results[id];
+  const res = r?.kind === 'tonalityEcma' ? r : undefined;
+  return (
+    <Shell id={id} title="Tonality (ECMA-418-2, Sottek)" accent="#7c3aed" input>
+      <Field label="Field">
+        <select className="nodrag" value={String(d.field)} onChange={(e) => set({ field: e.target.value })}>
+          <option value="free">Free</option><option value="diffuse">Diffuse</option>
+        </select>
+      </Field>
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>T (mean of T(t) &gt; 0.02)</td><td><b>{res.T.toFixed(3)} tu<sub>HMS</sub></b></td></tr>
+              <tr><td>T max</td><td>{res.Tmax.toFixed(3)} tu<sub>HMS</sub></td></tr>
+              <tr><td>Prominent (T′ &gt; 0.4)</td><td>{res.prominent.length ? '' : 'none'}</td></tr>
+              {res.prominent.slice(0, 5).map((t) => (
+                <tr key={t.band}><td>{t.f.toFixed(0)} Hz</td><td>{t.T.toFixed(3)} tu<sub>HMS</sub></td></tr>
+              ))}
+            </tbody>
+          </table>
+          <LinePlot yLabel="tu" height={110} series={[{ label: 'T(t)', data: res.Tl, dt: res.dt, color: SERIES[0] }]} />
+          <LinePlot yLabel="tu/Bark" xLabel="Bark" height={110} series={[{ label: 'T′(z), average', data: res.specific, dt: 0.5, x0: 0.25, color: SERIES[1] }]} />
+          <div className="hint">Hearing-model tonality: 1 kHz, 40 dB tone = 1 tu. Needs ≥ 0.5 s of Pa; slow (≈ 1 s per second of audio). The first 0.3 s are excluded from the statistics.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
 // ───────────────────────── Roughness ─────────────────────────
 export function RoughnessNode({ id, data }: NodeProps) {
   const d = data as Data;
@@ -427,6 +461,7 @@ export const nodeTypes = {
   roughness: RoughnessNode,
   loudnessTv: LoudnessTvNode,
   roughnessEcma: RoughnessEcmaNode,
+  tonalityEcma: TonalityEcmaNode,
   fluctuation: FluctuationNode,
   tonality: TonalityNode,
   impulsivity: ImpulsivityNode,
@@ -440,6 +475,7 @@ export const PALETTE: { type: NodeKind; label: string; defaults: Data }[] = [
   { type: 'loudness', label: 'Loudness & sharpness', defaults: { field: 'free', blockSec: 0.1 } },
   { type: 'loudnessTv', label: 'Loudness, time-varying (ISO 532-1)', defaults: { field: 'free' } },
   { type: 'roughnessEcma', label: 'Roughness (ECMA-418-2)', defaults: { field: 'free' } },
+  { type: 'tonalityEcma', label: 'Tonality (ECMA-418-2)', defaults: { field: 'free' } },
   { type: 'roughness', label: 'Roughness', defaults: { overlap: 0.5 } },
   { type: 'fluctuation', label: 'Fluctuation strength', defaults: {} },
   { type: 'tonality', label: 'Tonality (Nordic, TNR, PR, Aures)', defaults: { nfft: 16384 } },

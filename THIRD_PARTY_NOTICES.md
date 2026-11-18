@@ -21,3 +21,5 @@ src/dsp/sottekHms.ts and src/dsp/roughnessEcma.ts follow ecma418-torch (https://
   to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above
   copyright notice and this permission notice shall be included in all copies or substantial portions of the
   Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+
+src/dsp/tonalityEcma.ts is written from the text of ECMA-418-2 (4th ed., 2025) clause 6.2; it reuses the front end above and contains no code from the GPL-licensed implementations.

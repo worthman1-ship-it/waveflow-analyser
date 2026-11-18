@@ -7,6 +7,7 @@ import { spectrogram } from './spectrogram';
 import { loudnessFromLevels, thirdOctaveLevels } from './loudness';
 import { roughness } from './roughness';
 import { roughnessEcma } from './roughnessEcma';
+import { tonalityEcma } from './tonalityEcma';
 import { fluctuationStrength } from './fluctuation';
 import { tonality } from './tonality';
 import { loudnessTimeVarying, resampleTo48k } from './loudnessTv';
@@ -242,5 +243,33 @@ describe('ECMA-418-2 roughness', () => {
   });
   it('an unmodulated tone is not rough', { timeout: 60000 }, () => {
     expect(roughnessEcma(sine(1000, pa(60), 48000, 2), 48000).R).toBeLessThan(0.05);
+  });
+});
+
+describe('ECMA-418-2 tonality', () => {
+  const noise = (sec: number, db: number) => {
+    let seed = 12345;
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296) - 0.5;
+    const x = Float64Array.from({ length: 48000 * sec }, rnd);
+    let ms = 0;
+    for (const v of x) ms += v * v;
+    const g = (REF * 10 ** (db / 20)) / Math.sqrt(ms / x.length);
+    return x.map((v) => v * g);
+  };
+  it('1 kHz 40 dB tone gives 1 tu_HMS (calibration)', { timeout: 300000 }, () => {
+    const r = tonalityEcma(sine(1000, pa(40), 48000, 4), 48000, 'free');
+    expect(r.T).toBeGreaterThan(0.9975);
+    expect(r.T).toBeLessThan(1.0025);
+    expect(r.prominent[0].f).toBeGreaterThan(900);
+    expect(r.prominent[0].f).toBeLessThan(1100);
+  });
+  it('white noise is hardly tonal; a tone in noise is', { timeout: 300000 }, () => {
+    const n = noise(4, 60);
+    const rn = tonalityEcma(n, 48000, 'free');
+    const tone = sine(1000, pa(60), 48000, 4);
+    const mix = n.map((v, i) => v + tone[i]);
+    const rm = tonalityEcma(mix, 48000, 'free');
+    expect(rn.T).toBeLessThan(0.1);
+    expect(rm.T).toBeGreaterThan(0.4);
   });
 });
