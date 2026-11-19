@@ -12,6 +12,7 @@ import type { LevelStatsResult } from '../dsp/levelStats';
 import type { StiResult } from '../dsp/sti';
 import type { OrderResult } from '../dsp/orders';
 import type { MetricRpmResult } from '../dsp/metricRpm';
+import type { InterauralResult } from '../dsp/binaural';
 
 export type Quantity = 'acceleration' | 'velocity' | 'displacement' | 'pressure' | 'other';
 
@@ -23,14 +24,14 @@ export const QUANTITIES: Record<Quantity, { unit: string; ref: number; label: st
   other: { unit: 'FS', ref: 1, label: 'Other (full scale)' },
 };
 
-export interface WavParams { fileId?: string; fileName?: string; channel: number; fullScale: number; quantity: Quantity; ref: number; tachoChannel?: number }
+export interface WavParams { fileId?: string; fileName?: string; channel: number; fullScale: number; quantity: Quantity; ref: number; tachoChannel?: number; rightChannel?: number }
 export interface WeightingParams { weighting: WeightingId }
 export interface LevelParams { [k: string]: never }
 export interface SpectrogramParams { nfft: number; overlap: number; range: number }
 export interface LoudnessParams { field: 'free' | 'diffuse'; blockSec: number }
 export interface RoughnessParams { overlap: number }
 
-export type NodeKind = 'wavSource' | 'weighting' | 'level' | 'spectrogram' | 'loudness' | 'roughness' | 'fluctuation' | 'tonality' | 'impulsivity' | 'loudnessTv' | 'roughnessEcma' | 'tonalityEcma' | 'fluctuationEcma' | 'loudnessEcma' | 'octave' | 'levelStats' | 'annoyance' | 'sti' | 'orders' | 'metricRpm';
+export type NodeKind = 'wavSource' | 'weighting' | 'level' | 'spectrogram' | 'loudness' | 'roughness' | 'fluctuation' | 'tonality' | 'impulsivity' | 'loudnessTv' | 'roughnessEcma' | 'tonalityEcma' | 'fluctuationEcma' | 'loudnessEcma' | 'octave' | 'levelStats' | 'annoyance' | 'sti' | 'orders' | 'metricRpm' | 'binaural';
 
 export interface NodeSpec { id: string; type: NodeKind; params: Record<string, unknown> }
 export interface EdgeSpec { source: string; target: string }
@@ -47,6 +48,8 @@ export interface Signal {
   weighting: WeightingId;
   /** Raw tacho channel of the same file (for order analysis), if one was selected. */
   tacho?: Float64Array;
+  /** Right ear channel of a binaural pair (the signal itself is the left ear), calibrated like `data`. */
+  right?: Float64Array;
 }
 
 export interface LevelResult {
@@ -88,10 +91,15 @@ export interface AnnoyanceResultMsg {
 export type StiResultMsg = StiResult & { kind: 'sti'; label: string };
 export type OrdersResultMsg = OrderResult & { kind: 'orders'; label: string; unit: string; mode: string };
 export type MetricRpmResultMsg = MetricRpmResult & { kind: 'metricRpm'; label: string; metric: string; unit: string };
+export type BinauralResultMsg = InterauralResult & {
+  kind: 'binaural'; label: string; unit: string; field: string;
+  NL: number; NR: number; NB: number; NtL: Float32Array; NtR: Float32Array; NtB: Float32Array; dtN: number;
+  specificB: Float32Array; bandFreq: Float32Array;
+};
 export interface SourceResult {
   kind: 'source'; fs: number; channels: number; duration: number; bits: number; format: string; peak: number;
 }
-export type NodeResult = LevelResult | SpectrogramResult | LoudnessResult | RoughnessResultMsg | FluctuationResultMsg | TonalityResultMsg | ImpulsivityResultMsg | LoudnessTvResultMsg | RoughnessEcmaResultMsg | TonalityEcmaResultMsg | FluctuationEcmaResultMsg | LoudnessEcmaResultMsg | OctaveResultMsg | LevelStatsResultMsg | AnnoyanceResultMsg | StiResultMsg | OrdersResultMsg | MetricRpmResultMsg | SourceResult;
+export type NodeResult = LevelResult | SpectrogramResult | LoudnessResult | RoughnessResultMsg | FluctuationResultMsg | TonalityResultMsg | ImpulsivityResultMsg | LoudnessTvResultMsg | RoughnessEcmaResultMsg | TonalityEcmaResultMsg | FluctuationEcmaResultMsg | LoudnessEcmaResultMsg | OctaveResultMsg | LevelStatsResultMsg | AnnoyanceResultMsg | StiResultMsg | OrdersResultMsg | MetricRpmResultMsg | BinauralResultMsg | SourceResult;
 
 export type WorkerIn =
   | { type: 'file'; fileId: string; buffer: ArrayBuffer }

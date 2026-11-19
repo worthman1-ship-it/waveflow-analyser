@@ -74,6 +74,22 @@ describe('GraphRunner: new analysis nodes', () => {
     expect(r.result.rpmMin).toBeGreaterThan(1150); // after the 0.5 s skip
     expect(r.result.rpmMax).toBeLessThan(3001);
   });
+  it('binaural: level difference, IACC, ITD and binaural loudness', { timeout: 120000 }, () => {
+    const f = 48000, n = f * 3, d = 24; // right ear: -6 dB and 0.5 ms later
+    const noise = new Float64Array(n);
+    let s = 12345;
+    for (let i = 0; i < n; i++) { s = (s * 1103515245 + 12345) & 0x7fffffff; noise[i] = 0.2 * (s / 0x7fffffff - 0.5) * 2; }
+    const left = noise, right = Float64Array.from(noise, (_, i) => 0.5 * (noise[i - d] ?? 0));
+    const r = runGraph(f, [left, right], { rightChannel: 1 }, 'binaural', { field: 'free' });
+    expect(r.error).toBeUndefined();
+    if (r.result.kind !== 'binaural') throw new Error('wrong result');
+    expect(r.result.ild).toBeCloseTo(6.02, 1);
+    expect(r.result.iacc).toBeGreaterThan(0.99);
+    expect(r.result.itd * 1000).toBeCloseTo(0.5, 1);
+    expect(r.result.NB).toBeLessThan(r.result.NL);
+    expect(r.result.NB).toBeGreaterThan(r.result.NR);
+    expect(runGraph(f, [left, right], {}, 'binaural', {}).error).toMatch(/right/i);
+  });
   it('STI takes an impulse response; annoyance needs Pa', { timeout: 200000 }, () => {
     const ir = Float64Array.from({ length: fs }, (_, i) => (i === 0 ? 1 : 0));
     const st = runGraph(fs, [ir], { quantity: 'other', ref: 1 }, 'sti', {});

@@ -124,7 +124,7 @@ export default function App() {
       setClip(nodeId, { fs: w.fs, channels: w.channels });
       setErrors((s) => ({ ...s, [nodeId]: undefined }));
       updateNodeData(nodeId, {
-        fileId, fileName: name, ...(resetChannel ? { channel: 0, tachoChannel: -1 } : {}),
+        fileId, fileName: name, ...(resetChannel ? { channel: 0, tachoChannel: -1, rightChannel: -1 } : {}),
         info: { fs: w.fs, channels: w.channels.length, duration: (w.channels[0]?.length ?? 0) / w.fs, bits: w.bitsPerSample, format: w.format },
       });
       return true;
@@ -174,7 +174,7 @@ export default function App() {
       const x = type === 'wavSource' ? 20 : type === 'weighting' ? 340 : 700;
       const inCol = ns.filter((n) => Math.abs(n.position.x - x) < 150);
       // Reserve the height a node reaches once its results are shown, so it won't overlap later.
-      const fullHeight: Record<string, number> = { level: 400, spectrogram: 560, loudness: 500, loudnessTv: 400, roughnessEcma: 520, tonalityEcma: 520, fluctuationEcma: 520, loudnessEcma: 520, octave: 560, levelStats: 400, annoyance: 340, sti: 520, orders: 860, metricRpm: 600, roughness: 320, fluctuation: 360, tonality: 560, impulsivity: 520 };
+      const fullHeight: Record<string, number> = { level: 400, spectrogram: 560, loudness: 500, loudnessTv: 400, roughnessEcma: 520, tonalityEcma: 520, fluctuationEcma: 520, loudnessEcma: 520, octave: 560, levelStats: 400, annoyance: 340, sti: 520, orders: 860, metricRpm: 600, binaural: 620, roughness: 320, fluctuation: 360, tonality: 560, impulsivity: 520 };
       const y = inCol.reduce((m, n) =>
         Math.max(m, n.position.y + Math.max(n.measured?.height ?? 150, fullHeight[n.type ?? ''] ?? 0) + 30), 40);
       const position = ns.length ? { x, y } : screenToFlowPosition({ x: 300, y: 100 });

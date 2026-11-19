@@ -90,6 +90,14 @@ export function WavSourceNode({ id, data }: NodeProps) {
           </select>
         </Field>
       )}
+      {info && info.channels > 1 && (
+        <Field label="Right ear channel (for binaural)">
+          <select className="nodrag" value={typeof d.rightChannel === 'number' ? d.rightChannel : -1} onChange={(e) => set({ rightChannel: Number(e.target.value) })}>
+            <option value={-1}>none</option>
+            {Array.from({ length: info.channels }, (_, i) => <option key={i} value={i}>{i + 1}</option>)}
+          </select>
+        </Field>
+      )}
       <Field label="Quantity">
         <select className="nodrag" value={q}
           onChange={(e) => { const nq = e.target.value as Quantity; set({ quantity: nq, ref: QUANTITIES[nq].ref }); }}>
@@ -496,6 +504,44 @@ export function OrdersNode({ id, data }: NodeProps) {
   );
 }
 
+// ───────────────────────── Binaural analysis ─────────────────────────
+export function BinauralNode({ id, data }: NodeProps) {
+  const d = data as Data;
+  const set = useParams(id);
+  const r = useGraph().results[id];
+  const res = r?.kind === 'binaural' ? r : undefined;
+  return (
+    <Shell id={id} title="Binaural analysis (ECMA-418-2)" accent="#6d28d9" input>
+      <Field label="Field">
+        <select className="nodrag" value={String(d.field)} onChange={(e) => set({ field: e.target.value })}>
+          <option value="free">Free</option><option value="diffuse">Diffuse</option>
+        </select>
+      </Field>
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>Binaural loudness N<sub>B</sub></td><td><b>{res.NB.toFixed(2)} sone<sub>HMS</sub></b></td></tr>
+              <tr><td>Left / right N</td><td>{res.NL.toFixed(2)} / {res.NR.toFixed(2)}</td></tr>
+              <tr><td>Leq left / right</td><td>{res.leqL.toFixed(1)} / {res.leqR.toFixed(1)} dB</td></tr>
+              <tr><td>ILD (L − R)</td><td>{res.ild.toFixed(1)} dB</td></tr>
+              <tr><td>IACC</td><td>{res.iacc.toFixed(2)}</td></tr>
+              <tr><td>ITD</td><td>{(res.itd * 1000).toFixed(2)} ms</td></tr>
+            </tbody>
+          </table>
+          <LinePlot yLabel="sone_HMS" height={130} series={[
+            { label: 'left', data: res.NtL, dt: res.dtN, color: SERIES[0] },
+            { label: 'right', data: res.NtR, dt: res.dtN, color: SERIES[1] },
+            { label: 'binaural', data: res.NtB, dt: res.dtN, color: SERIES[2] },
+          ]} />
+          <LinePlot yLabel="IACC" height={90} yMin={0} yMax={1} series={[{ label: 'IACC', data: res.iaccT, dt: res.dt, color: SERIES[3] }]} />
+          <div className="hint">The selected channel is the left ear; pick the right ear in the WAV node. Binaural loudness: quadratic mean of the left and right specific loudness (clause 8.1.5). IACC: broadband, lags ±1 ms, per 1 s frame. Needs Pa; the recording should already be diffuse- or free-field equalised. Roughness, tonality and fluctuation are not combined binaurally.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
 // ───────────────────────── Psychoacoustic metric vs RPM ─────────────────────────
 export function MetricRpmNode({ id, data }: NodeProps) {
   const d = data as Data;
@@ -761,6 +807,7 @@ export const nodeTypes = {
   sti: StiNode,
   orders: OrdersNode,
   metricRpm: MetricRpmNode,
+  binaural: BinauralNode,
   fluctuation: FluctuationNode,
   tonality: TonalityNode,
   impulsivity: ImpulsivityNode,
@@ -781,6 +828,7 @@ export const PALETTE: { type: NodeKind; label: string; defaults: Data }[] = [
   { type: 'levelStats', label: 'Level statistics (Leq, Lx)', defaults: {} },
   { type: 'annoyance', label: 'Psychoacoustic annoyance', defaults: {} },
   { type: 'sti', label: 'Speech transmission index (from IR)', defaults: {} },
+  { type: 'binaural', label: 'Binaural analysis', defaults: { field: 'free' } },
   { type: 'metricRpm', label: 'Psychoacoustic metric vs RPM', defaults: { metric: 'loudnessTv', field: 'free', mode: 'tacho', ppr: 1, rpm0: 1000, rpm1: 3000 } },
   { type: 'orders', label: 'Order analysis (vs RPM)', defaults: { mode: 'tacho', ppr: 1, rpm0: 1000, rpm1: 3000, orders: '1,2,3,4', frameSec: 0.25 } },
   { type: 'fluctuationEcma', label: 'Fluctuation strength (ECMA-418-2)', defaults: { field: 'free' } },

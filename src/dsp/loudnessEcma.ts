@@ -16,12 +16,12 @@ export interface LoudnessEcmaResult {
   specific: Float32Array; bandFreq: Float32Array;
 }
 
-export function loudnessEcma(
+/** Time-dependent specific loudness N'(l, z) of one channel (Formulae 113–114): spec[z][l]. */
+export function specificLoudnessEcma(
   x: Float64Array, fs: number, field: 'free' | 'diffuse' = 'free', onProgress?: (f: number) => void,
-): LoudnessEcmaResult {
+): Float64Array[] {
   const { nL, nTonal, nSigLp } = tonalityCore(x, fs, field, onProgress);
   const spec = Array.from({ length: N_BANDS }, () => new Float64Array(nL));
-  const Nt = new Float32Array(nL);
   for (let l = 0; l < nL; l++) {
     let mx = 0;
     const nn = new Float64Array(N_BANDS);
@@ -30,11 +30,24 @@ export function loudnessEcma(
       mx = Math.max(mx, nTonal[z][l] + nn[z]);
     }
     const e = EA / (mx + EPS) + EB; // (114)
+    for (let z = 0; z < N_BANDS; z++) spec[z][l] = (nTonal[z][l] ** e + (WN * nn[z]) ** e) ** (1 / e); // (113)
+  }
+  return spec;
+}
+
+/** Binaural specific loudness (Formula 118): quadratic mean of the left and right channels. */
+export function binauralSpecific(a: Float64Array[], b: Float64Array[]): Float64Array[] {
+  const nl = Math.min(a[0].length, b[0].length);
+  return a.map((za, z) => Float64Array.from({ length: nl }, (_, l) => Math.sqrt((za[l] ** 2 + b[z][l] ** 2) / 2)));
+}
+
+/** Loudness quantities (Formulae 115–117) from specific loudness spec[z][l]. */
+export function loudnessFromSpecific(spec: Float64Array[]): LoudnessEcmaResult {
+  const nL = spec[0].length;
+  const Nt = new Float32Array(nL);
+  for (let l = 0; l < nL; l++) {
     let sum = 0;
-    for (let z = 0; z < N_BANDS; z++) {
-      const v = (nTonal[z][l] ** e + (WN * nn[z]) ** e) ** (1 / e); // (113)
-      spec[z][l] = v; sum += v;
-    }
+    for (let z = 0; z < N_BANDS; z++) sum += spec[z][l];
     Nt[l] = DZ * sum; // (116)
   }
   const pavg = (get: (l: number) => number) => {
@@ -47,4 +60,10 @@ export function loudnessEcma(
   let Nmax = 0;
   for (let l = 0; l < nL; l++) Nmax = Math.max(Nmax, Nt[l]);
   return { Nt, dt: 1 / 187.5, N: pavg((l) => Nt[l]), Nmax, specific, bandFreq: Float32Array.from(BAND_FC) };
+}
+
+export function loudnessEcma(
+  x: Float64Array, fs: number, field: 'free' | 'diffuse' = 'free', onProgress?: (f: number) => void,
+): LoudnessEcmaResult {
+  return loudnessFromSpecific(specificLoudnessEcma(x, fs, field, onProgress));
 }

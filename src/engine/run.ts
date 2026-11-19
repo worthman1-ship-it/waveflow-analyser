@@ -15,7 +15,8 @@ import { loudnessTimeVarying } from '../dsp/loudnessTv';
 import { roughnessEcma } from '../dsp/roughnessEcma';
 import { tonalityEcma } from '../dsp/tonalityEcma';
 import { fluctuationEcma } from '../dsp/fluctuationEcma';
-import { loudnessEcma } from '../dsp/loudnessEcma';
+import { loudnessEcma, specificLoudnessEcma, binauralSpecific, loudnessFromSpecific } from '../dsp/loudnessEcma';
+import { interaural } from '../dsp/binaural';
 import { octaveBands } from '../dsp/octave';
 import { levelStatistics, psychoacousticAnnoyance } from '../dsp/levelStats';
 import { stiFromImpulseResponse } from '../dsp/sti';
@@ -92,10 +93,13 @@ export class GraphRunner {
         };
         const tc = p.tachoChannel ?? -1;
         if (tc >= 0 && tc < w.channels.length) out.tacho = Float64Array.from(w.channels[tc]);
+        const rc = p.rightChannel ?? -1;
+        if (rc >= 0 && rc < w.channels.length) out.right = Float64Array.from(w.channels[rc], (v) => v * p.fullScale);
       } else if (n.type === 'weighting') {
         const up = signalFor(inputOf.get(id)!);
         const wid = n.params.weighting as WeightingId;
         out = { ...up, data: sosFilter(weightingSos(wid, up.fs), up.data), weighting: wid, label: `${up.label} → ${wid}` };
+        if (up.right) out.right = sosFilter(weightingSos(wid, up.fs), up.right);
       } else {
         throw new Error(`${n.type} has no signal output`);
       }
@@ -244,6 +248,22 @@ function analyse(n: NodeSpec, s: Signal, status: (t: string) => void): NodeResul
         orders, frameSec: Math.max(0.05, Number(p.frameSec) || 0.25),
       });
       return { kind: 'orders', label: s.label, unit: s.unit, mode, ...r };
+    }
+    case 'binaural': {
+      needPressure(s, 'Binaural analysis');
+      if (!s.right) throw new Error('Select the right-ear channel in the WAV source node (this node analyses the selected channel as the left ear)');
+      const field = p.field === 'diffuse' ? 'diffuse' : 'free';
+      status('Interaural…');
+      const ia = interaural(s.data, s.right, s.fs, s.ref);
+      status('Left ear loudness…');
+      const sl = specificLoudnessEcma(s.data, s.fs, field, (f) => status(`Left ear… ${Math.round(f * 100)}%`));
+      status('Right ear loudness…');
+      const sr = specificLoudnessEcma(s.right, s.fs, field, (f) => status(`Right ear… ${Math.round(f * 100)}%`));
+      const L = loudnessFromSpecific(sl), R = loudnessFromSpecific(sr), B = loudnessFromSpecific(binauralSpecific(sl, sr));
+      return {
+        kind: 'binaural', label: s.label, unit: s.unit, field, ...ia,
+        NL: L.N, NR: R.N, NB: B.N, NtL: L.Nt, NtR: R.Nt, NtB: B.Nt, dtN: B.dt, specificB: B.specific, bandFreq: B.bandFreq,
+      };
     }
     case 'metricRpm': {
       needPressure(s, 'Psychoacoustic metric vs RPM');
