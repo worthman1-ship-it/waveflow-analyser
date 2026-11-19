@@ -62,6 +62,18 @@ describe('GraphRunner: new analysis nodes', () => {
     const noTacho = runGraph(f, [sig, tach], { quantity: 'acceleration', ref: 1e-6 }, 'orders', { mode: 'tacho', ppr: 1, orders: '2' });
     expect(noTacho.error).toMatch(/tacho/i);
   });
+  it('metric vs RPM: loudness rises with a level that follows the speed ramp', { timeout: 120000 }, () => {
+    const f = 48000, sec = 6, n = f * sec;
+    // 1 kHz tone whose amplitude grows linearly with time (a run-up), speed 1000 -> 3000 rpm
+    const sig = Float64Array.from({ length: n }, (_, i) => (0.02 + 0.3 * (i / n)) * Math.sin((2 * Math.PI * 1000 * i) / f));
+    const r = runGraph(f, [sig], {}, 'metricRpm', { metric: 'loudnessTv', field: 'free', mode: 'ramp', rpm0: 1000, rpm1: 3000 });
+    expect(r.error).toBeUndefined();
+    if (r.result.kind !== 'metricRpm') throw new Error('wrong result');
+    const m = r.result.mean;
+    expect(m[m.length - 1]).toBeGreaterThan(2 * m[0]);
+    expect(r.result.rpmMin).toBeGreaterThan(1150); // after the 0.5 s skip
+    expect(r.result.rpmMax).toBeLessThan(3001);
+  });
   it('STI takes an impulse response; annoyance needs Pa', { timeout: 200000 }, () => {
     const ir = Float64Array.from({ length: fs }, (_, i) => (i === 0 ? 1 : 0));
     const st = runGraph(fs, [ir], { quantity: 'other', ref: 1 }, 'sti', {});

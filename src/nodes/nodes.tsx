@@ -496,6 +496,65 @@ export function OrdersNode({ id, data }: NodeProps) {
   );
 }
 
+// ───────────────────────── Psychoacoustic metric vs RPM ─────────────────────────
+export function MetricRpmNode({ id, data }: NodeProps) {
+  const d = data as Data;
+  const set = useParams(id);
+  const r = useGraph().results[id];
+  const res = r?.kind === 'metricRpm' ? r : undefined;
+  const tacho = d.mode !== 'ramp';
+  return (
+    <Shell id={id} title="Psychoacoustic metric vs RPM" accent="#a16207" input>
+      <Field label="Metric">
+        <select className="nodrag" value={String(d.metric)} onChange={(e) => set({ metric: e.target.value })}>
+          <option value="loudnessTv">Loudness (ISO 532-1)</option><option value="loudnessEcma">Loudness (ECMA-418-2)</option>
+          <option value="roughnessEcma">Roughness (ECMA-418-2)</option><option value="tonalityEcma">Tonality (ECMA-418-2)</option>
+          <option value="fluctuationEcma">Fluctuation (ECMA-418-2)</option>
+        </select>
+      </Field>
+      <Field label="Field">
+        <select className="nodrag" value={String(d.field)} onChange={(e) => set({ field: e.target.value })}>
+          <option value="free">Free</option><option value="diffuse">Diffuse</option>
+        </select>
+      </Field>
+      <Field label="Speed from">
+        <select className="nodrag" value={tacho ? 'tacho' : 'ramp'} onChange={(e) => set({ mode: e.target.value })}>
+          <option value="tacho">Tacho channel (set in WAV node)</option><option value="ramp">Linear RPM ramp</option>
+        </select>
+      </Field>
+      {tacho ? (
+        <Field label="Pulses per revolution">
+          <input className="nodrag" type="number" min={1} step={1} value={Number(d.ppr)} onChange={(e) => set({ ppr: Number(e.target.value) || 1 })} />
+        </Field>
+      ) : (
+        <>
+          <Field label="RPM at start">
+            <input className="nodrag" type="number" step="any" value={Number(d.rpm0)} onChange={(e) => set({ rpm0: Number(e.target.value) || 0 })} />
+          </Field>
+          <Field label="RPM at end">
+            <input className="nodrag" type="number" step="any" value={Number(d.rpm1)} onChange={(e) => set({ rpm1: Number(e.target.value) || 0 })} />
+          </Field>
+        </>
+      )}
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>Speed range</td><td><b>{res.rpmMin.toFixed(0)} – {res.rpmMax.toFixed(0)} rpm</b></td></tr>
+              <tr><td>Frames used</td><td>{res.frames}</td></tr>
+            </tbody>
+          </table>
+          <LinePlot yLabel={res.unit} xLabel="rpm" height={150} series={[
+            { label: 'mean', data: res.mean, dt: res.rpmStep, x0: res.rpmLo, color: SERIES[0] },
+            { label: 'max', data: res.max, dt: res.rpmStep, x0: res.rpmLo, color: SERIES[1] },
+          ]} />
+          <div className="hint">Metric frames are placed at k·Δt and binned (40 bins) by the shaft speed at that time (averaged over ≥ 0.1 s). The first 0.5 s is skipped (filter start-up). Needs Pa.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
 // ───────────────────────── Fluctuation strength, ECMA-418-2 ─────────────────────────
 export function FluctuationEcmaNode({ id, data }: NodeProps) {
   const d = data as Data;
@@ -701,6 +760,7 @@ export const nodeTypes = {
   annoyance: AnnoyanceNode,
   sti: StiNode,
   orders: OrdersNode,
+  metricRpm: MetricRpmNode,
   fluctuation: FluctuationNode,
   tonality: TonalityNode,
   impulsivity: ImpulsivityNode,
@@ -721,6 +781,7 @@ export const PALETTE: { type: NodeKind; label: string; defaults: Data }[] = [
   { type: 'levelStats', label: 'Level statistics (Leq, Lx)', defaults: {} },
   { type: 'annoyance', label: 'Psychoacoustic annoyance', defaults: {} },
   { type: 'sti', label: 'Speech transmission index (from IR)', defaults: {} },
+  { type: 'metricRpm', label: 'Psychoacoustic metric vs RPM', defaults: { metric: 'loudnessTv', field: 'free', mode: 'tacho', ppr: 1, rpm0: 1000, rpm1: 3000 } },
   { type: 'orders', label: 'Order analysis (vs RPM)', defaults: { mode: 'tacho', ppr: 1, rpm0: 1000, rpm1: 3000, orders: '1,2,3,4', frameSec: 0.25 } },
   { type: 'fluctuationEcma', label: 'Fluctuation strength (ECMA-418-2)', defaults: { field: 'free' } },
   { type: 'fluctuation', label: 'Fluctuation strength', defaults: {} },

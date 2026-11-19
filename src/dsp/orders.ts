@@ -55,7 +55,7 @@ function tachoPulses(t: Float64Array, fs: number): Float64Array {
 }
 
 /** Shaft phase in revolutions at every sample, plus the speed at the sample rate of `x`. */
-function shaftPhase(n: number, fs: number, tacho: Float64Array | undefined, p: OrderParams): Float64Array {
+export function shaftPhase(n: number, fs: number, tacho: Float64Array | undefined, p: OrderParams): Float64Array {
   const ph = new Float64Array(n);
   const T = n / fs;
   if (p.mode === 'ramp') {

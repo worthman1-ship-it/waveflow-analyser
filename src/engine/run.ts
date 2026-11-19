@@ -20,6 +20,7 @@ import { octaveBands } from '../dsp/octave';
 import { levelStatistics, psychoacousticAnnoyance } from '../dsp/levelStats';
 import { stiFromImpulseResponse } from '../dsp/sti';
 import { orderAnalysis } from '../dsp/orders';
+import { metricVsRpm } from '../dsp/metricRpm';
 import type { EdgeSpec, NodeResult, NodeSpec, Signal, WavParams, WorkerOut } from './types';
 
 export class GraphRunner {
@@ -243,6 +244,23 @@ function analyse(n: NodeSpec, s: Signal, status: (t: string) => void): NodeResul
         orders, frameSec: Math.max(0.05, Number(p.frameSec) || 0.25),
       });
       return { kind: 'orders', label: s.label, unit: s.unit, mode, ...r };
+    }
+    case 'metricRpm': {
+      needPressure(s, 'Psychoacoustic metric vs RPM');
+      const field = p.field === 'diffuse' ? 'diffuse' : 'free';
+      const prog = (f: number) => status(`Computing… ${Math.round(f * 100)}%`);
+      const metric = String(p.metric);
+      let v: ArrayLike<number>, dt: number, unit: string;
+      if (metric === 'loudnessEcma') { const r = loudnessEcma(s.data, s.fs, field, prog); v = r.Nt; dt = r.dt; unit = 'sone_HMS'; }
+      else if (metric === 'roughnessEcma') { const r = roughnessEcma(s.data, s.fs, field, prog); v = r.Rt; dt = r.dt; unit = 'asper_HMS'; }
+      else if (metric === 'tonalityEcma') { const r = tonalityEcma(s.data, s.fs, field, prog); v = r.Tl; dt = r.dt; unit = 'tu_HMS'; }
+      else if (metric === 'fluctuationEcma') { const r = fluctuationEcma(s.data, s.fs, field, prog); v = r.Ft; dt = r.dt; unit = 'vacil_HMS'; }
+      else { const r = loudnessTimeVarying(s.data, s.fs, field, prog); v = r.N; dt = r.dt; unit = 'sone'; }
+      const mode = p.mode === 'ramp' ? 'ramp' : 'tacho';
+      const r = metricVsRpm(v, dt, s.data.length, s.fs, s.tacho, {
+        mode, ppr: Math.max(1, Number(p.ppr) || 1), rpm0: Number(p.rpm0) || 0, rpm1: Number(p.rpm1) || 0, orders: [], frameSec: 0.25,
+      }, 0.5);
+      return { kind: 'metricRpm', label: s.label, metric, unit, ...r };
     }
     case 'fluctuationEcma': {
       needPressure(s, 'ECMA-418-2 fluctuation strength');
