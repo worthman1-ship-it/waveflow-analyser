@@ -1,0 +1,75 @@
+import { describe, expect, it } from 'vitest';
+import { GraphRunner } from './run';
+import type { EdgeSpec, NodeResult, NodeSpec, WorkerOut } from './types';
+
+/** 16-bit PCM WAV, `ch` channels, from per-channel float arrays in [-1, 1]. */
+function wav(fs: number, chans: Float64Array[]): ArrayBuffer {
+  const n = chans[0].length, ch = chans.length;
+  const buf = new ArrayBuffer(44 + n * ch * 2);
+  const v = new DataView(buf);
+  const str = (o: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + n * ch * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, ch, true); v.setUint32(24, fs, true);
+  v.setUint32(28, fs * ch * 2, true); v.setUint16(32, ch * 2, true); v.setUint16(34, 16, true);
+  str(36, 'data'); v.setUint32(40, n * ch * 2, true);
+  for (let i = 0; i < n; i++) for (let c = 0; c < ch; c++) v.setInt16(44 + (i * ch + c) * 2, Math.round(chans[c][i] * 32767), true);
+  return buf;
+}
+
+function runGraph(fs: number, chans: Float64Array[], wavParams: Record<string, unknown>, nodeType: NodeSpec['type'], params: Record<string, unknown>) {
+  const r = new GraphRunner();
+  r.addFile('f1', wav(fs, chans));
+  const nodes: NodeSpec[] = [
+    { id: 'w', type: 'wavSource', params: { fileId: 'f1', fileName: 'x.wav', channel: 0, fullScale: 1, quantity: 'pressure', ref: 2e-5, ...wavParams } },
+    { id: 'n', type: nodeType, params },
+  ];
+  const edges: EdgeSpec[] = [{ source: 'w', target: 'n' }];
+  const out: Record<string, NodeResult> = {}, errors: Record<string, string> = {};
+  r.run(nodes, edges, (m: WorkerOut) => {
+    if (m.type === 'result') out[m.nodeId] = m.result;
+    if (m.type === 'error') errors[m.nodeId] = m.message;
+  });
+  return { result: out.n, error: errors.n };
+}
+
+const tone = (f: number, amp: number, fs: number, sec: number) => Float64Array.from({ length: fs * sec }, (_, i) => amp * Math.sin((2 * Math.PI * f * i) / fs));
+
+describe('GraphRunner: new analysis nodes', () => {
+  const fs = 48000, a60 = 2e-5 * 10 ** 3 * Math.SQRT2; // 60 dB SPL sine amplitude (Pa); full scale = 1 Pa
+  const x = tone(1000, a60, fs, 3);
+  it('level statistics, octave bands and ECMA loudness run through the worker path', { timeout: 120000 }, () => {
+    const ls = runGraph(fs, [x], {}, 'levelStats', {});
+    expect(ls.error).toBeUndefined();
+    expect(ls.result.kind === 'levelStats' && Math.abs(ls.result.leq - 60) < 0.3).toBe(true);
+    const oc = runGraph(fs, [x], {}, 'octave', { fraction: 3 });
+    expect(oc.result.kind === 'octave' && Math.abs(oc.result.total - 60) < 0.5).toBe(true);
+    const le = runGraph(fs, [x], {}, 'loudnessEcma', { field: 'free' });
+    expect(le.error).toBeUndefined();
+    expect(le.result.kind === 'loudnessEcma' && le.result.N > 1).toBe(true);
+  });
+  it('orders: RPM ramp, and tacho channel selected in the WAV source', () => {
+    const f = 8000, n = f * 10;
+    const phase = (t: number) => (1200 * t + (1800 * t * t) / 20) / 60;
+    const sig = Float64Array.from({ length: n }, (_, i) => 0.5 * Math.sin(2 * Math.PI * 2 * phase(i / f)));
+    const tach = Float64Array.from({ length: n }, (_, i) => (phase(i / f) % 1 < 0.1 ? 0.8 : 0));
+    const ramp = runGraph(f, [sig], { quantity: 'acceleration', ref: 1e-6 }, 'orders', { mode: 'ramp', rpm0: 1200, rpm1: 3000, orders: '2,3', frameSec: 0.25 });
+    expect(ramp.error).toBeUndefined();
+    const tc = runGraph(f, [sig, tach], { quantity: 'acceleration', ref: 1e-6, tachoChannel: 1 }, 'orders', { mode: 'tacho', ppr: 1, orders: '2', frameSec: 0.25 });
+    expect(tc.error).toBeUndefined();
+    if (tc.result.kind !== 'orders') throw new Error('wrong result');
+    const a = tc.result.tracks[0].amp;
+    expect(a[Math.floor(a.length / 2)]).toBeGreaterThan(0.33); // 0.5 / sqrt(2) = 0.354
+    const noTacho = runGraph(f, [sig, tach], { quantity: 'acceleration', ref: 1e-6 }, 'orders', { mode: 'tacho', ppr: 1, orders: '2' });
+    expect(noTacho.error).toMatch(/tacho/i);
+  });
+  it('STI takes an impulse response; annoyance needs Pa', { timeout: 200000 }, () => {
+    const ir = Float64Array.from({ length: fs }, (_, i) => (i === 0 ? 1 : 0));
+    const st = runGraph(fs, [ir], { quantity: 'other', ref: 1 }, 'sti', {});
+    expect(st.result.kind === 'sti' && st.result.sti > 0.9).toBe(true);
+    const bad = runGraph(fs, [x], { quantity: 'acceleration', ref: 1e-6 }, 'annoyance', {});
+    expect(bad.error).toMatch(/pressure/i);
+    const pa = runGraph(fs, [x], {}, 'annoyance', {});
+    expect(pa.error).toBeUndefined();
+    expect(pa.result.kind === 'annoyance' && pa.result.PA > 0).toBe(true);
+  });
+});

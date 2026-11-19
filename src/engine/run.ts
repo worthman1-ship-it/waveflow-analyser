@@ -15,6 +15,11 @@ import { loudnessTimeVarying } from '../dsp/loudnessTv';
 import { roughnessEcma } from '../dsp/roughnessEcma';
 import { tonalityEcma } from '../dsp/tonalityEcma';
 import { fluctuationEcma } from '../dsp/fluctuationEcma';
+import { loudnessEcma } from '../dsp/loudnessEcma';
+import { octaveBands } from '../dsp/octave';
+import { levelStatistics, psychoacousticAnnoyance } from '../dsp/levelStats';
+import { stiFromImpulseResponse } from '../dsp/sti';
+import { orderAnalysis } from '../dsp/orders';
 import type { EdgeSpec, NodeResult, NodeSpec, Signal, WavParams, WorkerOut } from './types';
 
 export class GraphRunner {
@@ -84,6 +89,8 @@ export class GraphRunner {
           fs: w.fs, data, quantity: p.quantity, ref: p.ref, weighting: 'Z',
           unit: unitFor(p.quantity), label: `${p.fileName ?? 'wav'} ch${ch + 1}`,
         };
+        const tc = p.tachoChannel ?? -1;
+        if (tc >= 0 && tc < w.channels.length) out.tacho = Float64Array.from(w.channels[tc]);
       } else if (n.type === 'weighting') {
         const up = signalFor(inputOf.get(id)!);
         const wid = n.params.weighting as WeightingId;
@@ -193,6 +200,49 @@ function analyse(n: NodeSpec, s: Signal, status: (t: string) => void): NodeResul
       const field = p.field === 'diffuse' ? 'diffuse' : 'free';
       const r = roughnessEcma(s.data, s.fs, field, (f) => status(`Computing… ${Math.round(f * 100)}%`));
       return { kind: 'roughnessEcma', label: s.label, field, ...r };
+    }
+    case 'loudnessEcma': {
+      needPressure(s, 'ECMA-418-2 loudness');
+      const field = p.field === 'diffuse' ? 'diffuse' : 'free';
+      const r = loudnessEcma(s.data, s.fs, field, (f) => status(`Computing… ${Math.round(f * 100)}%`));
+      return { kind: 'loudnessEcma', label: s.label, field, ...r };
+    }
+    case 'octave': {
+      const r = octaveBands(s.data, s.fs, s.ref, Number(p.fraction) === 1 ? 1 : 3);
+      return { kind: 'octave', label: s.label, unit: s.unit, ref: s.ref, ...r };
+    }
+    case 'levelStats': {
+      const r = levelStatistics(s.data, s.fs, s.ref);
+      return { kind: 'levelStats', label: s.label, unit: s.unit, ref: s.ref, weighting: s.weighting, ...r };
+    }
+    case 'annoyance': {
+      needPressure(s, 'Psychoacoustic annoyance');
+      status('Loudness…');
+      const n5 = loudnessTimeVarying(s.data, s.fs, 'free').N5;
+      status('Sharpness…');
+      const tl = thirdOctaveLevels(s.data, s.fs, 0.1);
+      const sh = Float32Array.from(tl.blocks, (lt) => loudnessFromLevels(lt, 'free').S).sort();
+      const pct5 = (a: ArrayLike<number>) => { const v = Float32Array.from(a as ArrayLike<number>).sort(); return v[Math.min(v.length - 1, Math.floor(0.95 * v.length))]; };
+      const s5 = sh[Math.min(sh.length - 1, Math.floor(0.95 * sh.length))];
+      status('Roughness…');
+      const r5 = pct5(roughness(s.data, s.fs, 0.5).R);
+      status('Fluctuation…');
+      const f5 = pct5(fluctuationStrength(s.data, s.fs).F);
+      const a = psychoacousticAnnoyance(n5, s5, f5, r5);
+      return { kind: 'annoyance', label: s.label, PA: a.PA, N5: n5, S5: s5, R5: r5, F5: f5, wS: a.wS, wFR: a.wFR };
+    }
+    case 'sti': {
+      const r = stiFromImpulseResponse(s.data, s.fs);
+      return { kind: 'sti', label: s.label, ...r };
+    }
+    case 'orders': {
+      const orders = String(p.orders ?? '1,2,3').split(/[\s,;]+/).map(Number).filter((v) => isFinite(v) && v > 0).slice(0, 6);
+      const mode = p.mode === 'ramp' ? 'ramp' : 'tacho';
+      const r = orderAnalysis(s.data, s.fs, s.tacho, {
+        mode, ppr: Math.max(1, Number(p.ppr) || 1), rpm0: Number(p.rpm0) || 0, rpm1: Number(p.rpm1) || 0,
+        orders, frameSec: Math.max(0.05, Number(p.frameSec) || 0.25),
+      });
+      return { kind: 'orders', label: s.label, unit: s.unit, mode, ...r };
     }
     case 'fluctuationEcma': {
       needPressure(s, 'ECMA-418-2 fluctuation strength');

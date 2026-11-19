@@ -82,6 +82,14 @@ export function WavSourceNode({ id, data }: NodeProps) {
           </select>
         </Field>
       )}
+      {info && info.channels > 1 && (
+        <Field label="Tacho channel (for orders)">
+          <select className="nodrag" value={typeof d.tachoChannel === 'number' ? d.tachoChannel : -1} onChange={(e) => set({ tachoChannel: Number(e.target.value) })}>
+            <option value={-1}>none</option>
+            {Array.from({ length: info.channels }, (_, i) => <option key={i} value={i}>{i + 1}</option>)}
+          </select>
+        </Field>
+      )}
       <Field label="Quantity">
         <select className="nodrag" value={q}
           onChange={(e) => { const nq = e.target.value as Quantity; set({ quantity: nq, ref: QUANTITIES[nq].ref }); }}>
@@ -295,6 +303,199 @@ export function RoughnessEcmaNode({ id, data }: NodeProps) {
   );
 }
 
+// ───────────────────────── Loudness, ECMA-418-2 ─────────────────────────
+export function LoudnessEcmaNode({ id, data }: NodeProps) {
+  const d = data as Data;
+  const set = useParams(id);
+  const r = useGraph().results[id];
+  const res = r?.kind === 'loudnessEcma' ? r : undefined;
+  return (
+    <Shell id={id} title="Loudness (ECMA-418-2, Sottek)" accent="#b45309" input>
+      <Field label="Field">
+        <select className="nodrag" value={String(d.field)} onChange={(e) => set({ field: e.target.value })}>
+          <option value="free">Free</option><option value="diffuse">Diffuse</option>
+        </select>
+      </Field>
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>N (power average)</td><td><b>{res.N.toFixed(2)} sone<sub>HMS</sub></b></td></tr>
+              <tr><td>N max</td><td>{res.Nmax.toFixed(2)} sone<sub>HMS</sub></td></tr>
+            </tbody>
+          </table>
+          <LinePlot yLabel="sone" height={110} series={[{ label: 'N(t)', data: res.Nt, dt: res.dt, color: SERIES[0] }]} />
+          <LinePlot yLabel="sone/Bark" xLabel="Bark" height={110} series={[{ label: 'N′(z), average', data: res.specific, dt: 0.5, x0: 0.25, color: SERIES[1] }]} />
+          <div className="hint">Hearing-model loudness (tonal + noise loudness): 1 kHz, 40 dB tone = 1 sone. Needs ≥ 0.5 s of Pa; the first 0.3 s are excluded.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
+// ───────────────────────── Octave / third-octave bands ─────────────────────────
+export function OctaveNode({ id, data }: NodeProps) {
+  const d = data as Data;
+  const set = useParams(id);
+  const r = useGraph().results[id];
+  const res = r?.kind === 'octave' ? r : undefined;
+  return (
+    <Shell id={id} title="Octave / third-octave bands" accent="#4d7c0f" input>
+      <Field label="Bands">
+        <select className="nodrag" value={Number(d.fraction)} onChange={(e) => set({ fraction: Number(e.target.value) })}>
+          <option value={3}>1/3 octave</option><option value={1}>Octave</option>
+        </select>
+      </Field>
+      {res && (
+        <>
+          <table className="results">
+            <tbody><tr><td>Total</td><td><b>{dB(res.total)} {refText(res.ref, res.unit)}</b></td></tr></tbody>
+          </table>
+          <LinePlot yLabel="dB" xLabel="band #" height={130} series={[
+            { label: 'Leq', data: res.leq, dt: 1, color: SERIES[0] },
+            { label: 'Lmax (frame)', data: res.lmax, dt: 1, color: SERIES[1] },
+          ]} />
+          <div style={{ maxHeight: 150, overflowY: 'auto' }}>
+            <table className="results">
+              <tbody>
+                {res.fc.map((f, i) => (
+                  <tr key={f}><td>#{i} · {f >= 1000 ? `${+(f / 1000).toPrecision(3)} k` : Math.round(f)} Hz</td><td>{dB(res.leq[i])} / {dB(res.lmax[i])} dB</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="hint">Leq / max over {res.frameSec.toFixed(2)} s frames; exact IEC 61260 band edges from a Hann-windowed FFT. Bands narrower than 2 bins are dropped.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
+// ───────────────────────── Level statistics ─────────────────────────
+export function LevelStatsNode({ id }: NodeProps) {
+  const r = useGraph().results[id];
+  const res = r?.kind === 'levelStats' ? r : undefined;
+  return (
+    <Shell id={id} title="Level statistics (Leq, Lx)" accent="#be185d" input>
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>Leq ({res.weighting})</td><td><b>{dB(res.leq)} dB</b></td></tr>
+              <tr><td>Peak</td><td>{dB(res.lpeak)} dB</td></tr>
+              <tr><td>Fast max / min</td><td>{dB(res.lfMax)} / {dB(res.lfMin)} dB</td></tr>
+              {res.percentiles.map((p) => <tr key={p.x}><td>L{p.x}</td><td>{dB(p.level)} dB</td></tr>)}
+            </tbody>
+          </table>
+          <div className="hint">{refText(res.ref, res.unit)}. Lx = Fast level exceeded x % of the time (125 ms detector, 100 Hz sampling).</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
+// ───────────────────────── Psychoacoustic annoyance ─────────────────────────
+export function AnnoyanceNode({ id }: NodeProps) {
+  const r = useGraph().results[id];
+  const res = r?.kind === 'annoyance' ? r : undefined;
+  return (
+    <Shell id={id} title="Psychoacoustic annoyance (Zwicker)" accent="#9f1239" input>
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>PA</td><td><b>{res.PA.toFixed(2)}</b></td></tr>
+              <tr><td>N5</td><td>{res.N5.toFixed(2)} sone</td></tr>
+              <tr><td>S5</td><td>{res.S5.toFixed(2)} acum</td></tr>
+              <tr><td>R5</td><td>{res.R5.toFixed(3)} asper</td></tr>
+              <tr><td>F5</td><td>{res.F5.toFixed(3)} vacil</td></tr>
+              <tr><td>w<sub>S</sub> / w<sub>FR</sub></td><td>{res.wS.toFixed(3)} / {res.wFR.toFixed(3)}</td></tr>
+            </tbody>
+          </table>
+          <div className="hint">PA = N5 (1 + √(w<sub>S</sub>² + w<sub>FR</sub>²)). N5 from ISO 532-1 time-varying loudness; sharpness, roughness and fluctuation are 5 %-exceeded values of this app's Daniel &amp; Weber and Fastl-type nodes (not the ECMA ones). Needs Pa.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
+// ───────────────────────── Speech transmission index ─────────────────────────
+export function StiNode({ id }: NodeProps) {
+  const r = useGraph().results[id];
+  const res = r?.kind === 'sti' ? r : undefined;
+  return (
+    <Shell id={id} title="Speech transmission index (STI)" accent="#0e7490" input>
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>STI</td><td><b>{res.sti.toFixed(2)}</b> ({res.rating})</td></tr>
+              {res.bands.map((f, i) => <tr key={f}><td>MTI {f} Hz</td><td>{res.mti[i].toFixed(2)}</td></tr>)}
+            </tbody>
+          </table>
+          <LinePlot yLabel="m(F), 1 kHz band" xLabel="modulation freq #" height={110} series={[{ label: 'm(F) 1 kHz', data: res.mtf[3], dt: 1, color: SERIES[0] }]} yMin={0} yMax={1} />
+          <div className="hint">Feed this node a room <b>impulse response</b> (e.g. a deconvolved sweep). Indirect method, IEC 60268-16, male weights; noise and masking are not applied. Needs fs ≥ 22.7 kHz.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
+// ───────────────────────── Order analysis / vs RPM ─────────────────────────
+export function OrdersNode({ id, data }: NodeProps) {
+  const d = data as Data;
+  const set = useParams(id);
+  const r = useGraph().results[id];
+  const res = r?.kind === 'orders' ? r : undefined;
+  const tacho = d.mode !== 'ramp';
+  return (
+    <Shell id={id} title="Order analysis (vs RPM)" accent="#a16207" input>
+      <Field label="Speed from">
+        <select className="nodrag" value={tacho ? 'tacho' : 'ramp'} onChange={(e) => set({ mode: e.target.value })}>
+          <option value="tacho">Tacho channel (set in WAV node)</option><option value="ramp">Linear RPM ramp</option>
+        </select>
+      </Field>
+      {tacho ? (
+        <Field label="Pulses per revolution">
+          <input className="nodrag" type="number" min={1} step={1} value={Number(d.ppr)} onChange={(e) => set({ ppr: Number(e.target.value) || 1 })} />
+        </Field>
+      ) : (
+        <>
+          <Field label="RPM at start">
+            <input className="nodrag" type="number" step="any" value={Number(d.rpm0)} onChange={(e) => set({ rpm0: Number(e.target.value) || 0 })} />
+          </Field>
+          <Field label="RPM at end">
+            <input className="nodrag" type="number" step="any" value={Number(d.rpm1)} onChange={(e) => set({ rpm1: Number(e.target.value) || 0 })} />
+          </Field>
+        </>
+      )}
+      <Field label="Orders to track">
+        <input className="nodrag" type="text" value={String(d.orders)} onChange={(e) => set({ orders: e.target.value })} />
+      </Field>
+      <Field label="Frame (s)">
+        <input className="nodrag" type="number" min={0.05} step={0.05} value={Number(d.frameSec)} onChange={(e) => set({ frameSec: Number(e.target.value) || 0.25 })} />
+      </Field>
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>Speed range</td><td><b>{res.rpmMin.toFixed(0)} – {res.rpmMax.toFixed(0)} rpm</b></td></tr>
+              <tr><td>Revolutions</td><td>{res.revolutions.toFixed(0)}</td></tr>
+            </tbody>
+          </table>
+          <LinePlot yLabel="rpm" height={100} series={[{ label: 'rpm', data: res.rpm, dt: res.rpmDt, color: SERIES[0] }]} />
+          <LinePlot yLabel={`${res.unit} RMS`} xLabel="rpm" height={120} series={[
+            { label: 'overall', data: res.levelVsRpm, dt: res.rpmStep, x0: res.rpmLo, color: SERIES[0] },
+            ...res.tracks.slice(0, 2).map((t, i) => ({ label: `order ${t.order}`, data: t.amp, dt: res.rpmStep, x0: res.rpmLo, color: SERIES[i + 1] })),
+          ]} />
+          <LinePlot yLabel={`${res.unit} RMS`} xLabel="order" height={110} series={[{ label: 'order spectrum', data: res.spectrum, dt: res.orderStep, color: SERIES[2] }]} />
+          <div className="hint">Order tracking by heterodyne at k·φ(t); the first two tracked orders are plotted. Order spectrum: 64 samples/rev resampling, 16-rev frames (resolution 1/16 order, up to order 32).</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
 // ───────────────────────── Fluctuation strength, ECMA-418-2 ─────────────────────────
 export function FluctuationEcmaNode({ id, data }: NodeProps) {
   const d = data as Data;
@@ -494,6 +695,12 @@ export const nodeTypes = {
   roughnessEcma: RoughnessEcmaNode,
   tonalityEcma: TonalityEcmaNode,
   fluctuationEcma: FluctuationEcmaNode,
+  loudnessEcma: LoudnessEcmaNode,
+  octave: OctaveNode,
+  levelStats: LevelStatsNode,
+  annoyance: AnnoyanceNode,
+  sti: StiNode,
+  orders: OrdersNode,
   fluctuation: FluctuationNode,
   tonality: TonalityNode,
   impulsivity: ImpulsivityNode,
@@ -509,6 +716,12 @@ export const PALETTE: { type: NodeKind; label: string; defaults: Data }[] = [
   { type: 'roughnessEcma', label: 'Roughness (ECMA-418-2)', defaults: { field: 'free' } },
   { type: 'tonalityEcma', label: 'Tonality (ECMA-418-2)', defaults: { field: 'free' } },
   { type: 'roughness', label: 'Roughness', defaults: { overlap: 0.5 } },
+  { type: 'loudnessEcma', label: 'Loudness (ECMA-418-2)', defaults: { field: 'free' } },
+  { type: 'octave', label: 'Octave / third-octave bands', defaults: { fraction: 3 } },
+  { type: 'levelStats', label: 'Level statistics (Leq, Lx)', defaults: {} },
+  { type: 'annoyance', label: 'Psychoacoustic annoyance', defaults: {} },
+  { type: 'sti', label: 'Speech transmission index (from IR)', defaults: {} },
+  { type: 'orders', label: 'Order analysis (vs RPM)', defaults: { mode: 'tacho', ppr: 1, rpm0: 1000, rpm1: 3000, orders: '1,2,3,4', frameSec: 0.25 } },
   { type: 'fluctuationEcma', label: 'Fluctuation strength (ECMA-418-2)', defaults: { field: 'free' } },
   { type: 'fluctuation', label: 'Fluctuation strength', defaults: {} },
   { type: 'tonality', label: 'Tonality (Nordic, TNR, PR, Aures)', defaults: { nfft: 16384 } },

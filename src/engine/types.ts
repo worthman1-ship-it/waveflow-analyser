@@ -6,6 +6,11 @@ import type { LoudnessTvResult } from '../dsp/loudnessTv';
 import type { RoughnessEcmaResult } from '../dsp/roughnessEcma';
 import type { TonalityEcmaResult } from '../dsp/tonalityEcma';
 import type { FluctuationEcmaResult } from '../dsp/fluctuationEcma';
+import type { LoudnessEcmaResult } from '../dsp/loudnessEcma';
+import type { OctaveResult } from '../dsp/octave';
+import type { LevelStatsResult } from '../dsp/levelStats';
+import type { StiResult } from '../dsp/sti';
+import type { OrderResult } from '../dsp/orders';
 
 export type Quantity = 'acceleration' | 'velocity' | 'displacement' | 'pressure' | 'other';
 
@@ -17,14 +22,14 @@ export const QUANTITIES: Record<Quantity, { unit: string; ref: number; label: st
   other: { unit: 'FS', ref: 1, label: 'Other (full scale)' },
 };
 
-export interface WavParams { fileId?: string; fileName?: string; channel: number; fullScale: number; quantity: Quantity; ref: number }
+export interface WavParams { fileId?: string; fileName?: string; channel: number; fullScale: number; quantity: Quantity; ref: number; tachoChannel?: number }
 export interface WeightingParams { weighting: WeightingId }
 export interface LevelParams { [k: string]: never }
 export interface SpectrogramParams { nfft: number; overlap: number; range: number }
 export interface LoudnessParams { field: 'free' | 'diffuse'; blockSec: number }
 export interface RoughnessParams { overlap: number }
 
-export type NodeKind = 'wavSource' | 'weighting' | 'level' | 'spectrogram' | 'loudness' | 'roughness' | 'fluctuation' | 'tonality' | 'impulsivity' | 'loudnessTv' | 'roughnessEcma' | 'tonalityEcma' | 'fluctuationEcma';
+export type NodeKind = 'wavSource' | 'weighting' | 'level' | 'spectrogram' | 'loudness' | 'roughness' | 'fluctuation' | 'tonality' | 'impulsivity' | 'loudnessTv' | 'roughnessEcma' | 'tonalityEcma' | 'fluctuationEcma' | 'loudnessEcma' | 'octave' | 'levelStats' | 'annoyance' | 'sti' | 'orders';
 
 export interface NodeSpec { id: string; type: NodeKind; params: Record<string, unknown> }
 export interface EdgeSpec { source: string; target: string }
@@ -39,6 +44,8 @@ export interface Signal {
   /** Human-readable processing chain, e.g. "pile.wav ch1 → Wb". */
   label: string;
   weighting: WeightingId;
+  /** Raw tacho channel of the same file (for order analysis), if one was selected. */
+  tacho?: Float64Array;
 }
 
 export interface LevelResult {
@@ -71,10 +78,18 @@ export type LoudnessTvResultMsg = LoudnessTvResult & { kind: 'loudnessTv'; label
 export type RoughnessEcmaResultMsg = RoughnessEcmaResult & { kind: 'roughnessEcma'; label: string; field: string };
 export type TonalityEcmaResultMsg = TonalityEcmaResult & { kind: 'tonalityEcma'; label: string; field: string };
 export type FluctuationEcmaResultMsg = FluctuationEcmaResult & { kind: 'fluctuationEcma'; label: string; field: string };
+export type LoudnessEcmaResultMsg = LoudnessEcmaResult & { kind: 'loudnessEcma'; label: string; field: string };
+export type OctaveResultMsg = OctaveResult & { kind: 'octave'; label: string; unit: string; ref: number };
+export type LevelStatsResultMsg = LevelStatsResult & { kind: 'levelStats'; label: string; unit: string; ref: number; weighting: string };
+export interface AnnoyanceResultMsg {
+  kind: 'annoyance'; label: string; PA: number; N5: number; S5: number; R5: number; F5: number; wS: number; wFR: number;
+}
+export type StiResultMsg = StiResult & { kind: 'sti'; label: string };
+export type OrdersResultMsg = OrderResult & { kind: 'orders'; label: string; unit: string; mode: string };
 export interface SourceResult {
   kind: 'source'; fs: number; channels: number; duration: number; bits: number; format: string; peak: number;
 }
-export type NodeResult = LevelResult | SpectrogramResult | LoudnessResult | RoughnessResultMsg | FluctuationResultMsg | TonalityResultMsg | ImpulsivityResultMsg | LoudnessTvResultMsg | RoughnessEcmaResultMsg | TonalityEcmaResultMsg | FluctuationEcmaResultMsg | SourceResult;
+export type NodeResult = LevelResult | SpectrogramResult | LoudnessResult | RoughnessResultMsg | FluctuationResultMsg | TonalityResultMsg | ImpulsivityResultMsg | LoudnessTvResultMsg | RoughnessEcmaResultMsg | TonalityEcmaResultMsg | FluctuationEcmaResultMsg | LoudnessEcmaResultMsg | OctaveResultMsg | LevelStatsResultMsg | AnnoyanceResultMsg | StiResultMsg | OrdersResultMsg | SourceResult;
 
 export type WorkerIn =
   | { type: 'file'; fileId: string; buffer: ArrayBuffer }

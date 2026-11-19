@@ -91,9 +91,10 @@ export interface TonalityEcmaResult {
   prominent: { band: number; f: number; T: number }[];
 }
 
-export function tonalityEcma(
+/** Clauses 6.2.2–6.2.7: tonal specific loudness and filtered signal loudness per band at 187.5 Hz (also the basis of ECMA-418-2 loudness). */
+export function tonalityCore(
   x: Float64Array, fs: number, field: 'free' | 'diffuse', onProgress?: (f: number) => void,
-): TonalityEcmaResult {
+): { nL: number; nTonal: Float64Array[]; nSigLp: Float64Array[]; fTon: Float64Array[]; n48: number } {
   const x48 = resampleTo48k(x, fs);
   const n = x48.length;
   if (n < FS * 0.5) throw new Error('Signal too short for ECMA-418-2 tonality (needs ≥ 0.5 s)');
@@ -210,6 +211,13 @@ export function tonalityEcma(
     }
     nTonal.push(nt); nSigLp.push(lowpass3(nSignal[j]));
   }
+  return { nL, nTonal, nSigLp, fTon, n48: n };
+}
+
+export function tonalityEcma(
+  x: Float64Array, fs: number, field: 'free' | 'diffuse', onProgress?: (f: number) => void,
+): TonalityEcmaResult {
+  const { nL, nTonal, nSigLp, fTon } = tonalityCore(x, fs, field, onProgress);
   const specT = Array.from({ length: N_BANDS }, () => new Float64Array(nL));
   const Tl = new Float32Array(nL);
   for (let l = 0; l < nL; l++) {

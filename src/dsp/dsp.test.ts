@@ -8,6 +8,11 @@ import { loudnessFromLevels, thirdOctaveLevels } from './loudness';
 import { roughness } from './roughness';
 import { roughnessEcma } from './roughnessEcma';
 import { tonalityEcma } from './tonalityEcma';
+import { loudnessEcma } from './loudnessEcma';
+import { octaveBands } from './octave';
+import { levelStatistics, psychoacousticAnnoyance } from './levelStats';
+import { stiFromImpulseResponse } from './sti';
+import { orderAnalysis } from './orders';
 import { fluctuationEcma } from './fluctuationEcma';
 import { fluctuationStrength } from './fluctuation';
 import { tonality } from './tonality';
@@ -296,5 +301,85 @@ describe('ECMA-418-2 fluctuation strength', () => {
     const steady = fluctuationEcma(sine(1000, pa(60), 48000, 6), 48000).F;
     expect(f20).toBeLessThan(0.3 * f4);
     expect(steady).toBeLessThan(0.02);
+  });
+});
+
+describe('ECMA-418-2 loudness', () => {
+  it('1 kHz 40 dB tone is 1 sone_HMS and loudness grows with level', { timeout: 300000 }, () => {
+    const a = loudnessEcma(sine(1000, pa(40), 48000, 3), 48000).N;
+    const b = loudnessEcma(sine(1000, pa(60), 48000, 3), 48000).N;
+    expect(a).toBeGreaterThan(0.95);
+    expect(a).toBeLessThan(1.05);
+    expect(b).toBeGreaterThan(2.5);
+  });
+});
+
+describe('octave bands', () => {
+  it('a 1 kHz tone is found in the 1 kHz band at its level, third and full octave', () => {
+    const x = sine(1000, pa(70), 48000, 3);
+    for (const fr of [1, 3] as const) {
+      const r = octaveBands(x, 48000, REF, fr);
+      const i = r.fc.findIndex((f) => Math.abs(f - 1000) < 1);
+      expect(r.leq[i]).toBeGreaterThan(69.5);
+      expect(r.leq[i]).toBeLessThan(70.5);
+      expect(r.total).toBeGreaterThan(69.5);
+      expect(r.total).toBeLessThan(70.6);
+    }
+  });
+});
+
+describe('level statistics and annoyance', () => {
+  it('steady tone: percentiles equal the level; PA grows with sharpness, roughness, fluctuation', () => {
+    const r = levelStatistics(sine(1000, pa(60), 48000, 6), 48000, REF);
+    expect(r.leq).toBeGreaterThan(59.8);
+    expect(r.leq).toBeLessThan(60.2);
+    expect(r.percentiles[0].level - r.percentiles[6].level).toBeLessThan(0.3);
+    expect(psychoacousticAnnoyance(4, 1, 0, 0).PA).toBeCloseTo(4, 6);
+    expect(psychoacousticAnnoyance(4, 3, 0.5, 0.5).PA).toBeGreaterThan(4);
+  });
+});
+
+describe('STI', () => {
+  it('an ideal impulse gives STI 1; a reverberant tail lowers it', () => {
+    const fs = 48000;
+    const d = new Float64Array(fs); d[0] = 1;
+    expect(stiFromImpulseResponse(d, fs).sti).toBeGreaterThan(0.97);
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296) - 0.5;
+    const rt = (T: number) => Float64Array.from({ length: fs * 2 }, (_, i) => rnd() * Math.exp((-6.9 * i) / (fs * T)));
+    const s1 = stiFromImpulseResponse(rt(0.5), fs).sti, s2 = stiFromImpulseResponse(rt(2.5), fs).sti;
+    expect(s1).toBeLessThan(0.8);
+    expect(s2).toBeLessThan(s1);
+    expect(s2).toBeGreaterThan(0.1);
+  });
+});
+
+describe('order analysis', () => {
+  // Engine run-up 1200 -> 3000 rpm over 10 s: order 2 (amplitude 1) and order 4.5 (amplitude 0.5), plus a tacho at 1 ppr.
+  const fs = 8000, T = 10, n = fs * T;
+  const rpmAt = (t: number) => 1200 + (1800 * t) / T;
+  const phase = (t: number) => (1200 * t + (1800 * t * t) / (2 * T)) / 60;
+  const x = Float64Array.from({ length: n }, (_, i) => Math.sin(2 * Math.PI * 2 * phase(i / fs)) + 0.5 * Math.sin(2 * Math.PI * 4.5 * phase(i / fs)));
+  const tacho = Float64Array.from({ length: n }, (_, i) => (phase(i / fs) % 1 < 0.1 ? 1 : 0));
+  it('tracks order amplitudes vs RPM from a tacho channel', () => {
+    const r = orderAnalysis(x, fs, tacho, { mode: 'tacho', ppr: 1, rpm0: 0, rpm1: 0, orders: [2, 4.5, 3], frameSec: 0.25 });
+    expect(r.rpmMin).toBeGreaterThan(1150);
+    expect(r.rpmMax).toBeLessThan(3050);
+    const mid = Math.floor(r.tracks[0].amp.length / 2);
+    expect(r.tracks[0].amp[mid]).toBeGreaterThan(0.69);
+    expect(r.tracks[0].amp[mid]).toBeLessThan(0.72); // 1/sqrt(2)
+    expect(r.tracks[1].amp[mid]).toBeGreaterThan(0.33);
+    expect(r.tracks[1].amp[mid]).toBeLessThan(0.38);
+    expect(r.tracks[2].amp[mid]).toBeLessThan(0.05);
+    // order spectrum: peaks at 2 and 4.5
+    const pk = (o: number) => r.spectrum[Math.round(o / r.orderStep)];
+    expect(pk(2)).toBeGreaterThan(0.6);
+    expect(pk(4.5)).toBeGreaterThan(0.3);
+    expect(pk(3)).toBeLessThan(0.1);
+    void rpmAt;
+  });
+  it('works with an RPM ramp instead of a tacho', () => {
+    const r = orderAnalysis(x, fs, undefined, { mode: 'ramp', ppr: 1, rpm0: 1200, rpm1: 3000, orders: [2], frameSec: 0.25 });
+    expect(r.tracks[0].amp[Math.floor(r.tracks[0].amp.length / 2)]).toBeGreaterThan(0.69);
   });
 });
