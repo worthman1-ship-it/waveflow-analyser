@@ -93,8 +93,10 @@ export type OrdersResultMsg = OrderResult & { kind: 'orders'; label: string; uni
 export type MetricRpmResultMsg = MetricRpmResult & { kind: 'metricRpm'; label: string; metric: string; unit: string };
 export type BinauralResultMsg = InterauralResult & {
   kind: 'binaural'; label: string; unit: string; field: string;
-  NL: number; NR: number; NB: number; NtL: Float32Array; NtR: Float32Array; NtB: Float32Array; dtN: number;
-  specificB: Float32Array; bandFreq: Float32Array;
+  /** The metric analysed per ear and its unit; the binaural entries are null for tonality (not defined by the standard). */
+  metric: string; metricUnit: string;
+  vL: number; vR: number; vB: number | null;
+  tL: Float32Array; tR: Float32Array; tB: Float32Array | null; dtM: number;
 };
 export interface SourceResult {
   kind: 'source'; fs: number; channels: number; duration: number; bits: number; format: string; peak: number;

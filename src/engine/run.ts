@@ -12,9 +12,9 @@ import { fluctuationStrength } from '../dsp/fluctuation';
 import { tonality } from '../dsp/tonality';
 import { impulsivity } from '../dsp/impulsivity';
 import { loudnessTimeVarying } from '../dsp/loudnessTv';
-import { roughnessEcma } from '../dsp/roughnessEcma';
+import { roughnessEcma, specificRoughnessEcma, roughnessFromSpecific } from '../dsp/roughnessEcma';
 import { tonalityEcma } from '../dsp/tonalityEcma';
-import { fluctuationEcma } from '../dsp/fluctuationEcma';
+import { fluctuationEcma, specificFluctuationEcma, fluctuationFromSpecific } from '../dsp/fluctuationEcma';
 import { loudnessEcma, specificLoudnessEcma, binauralSpecific, loudnessFromSpecific } from '../dsp/loudnessEcma';
 import { interaural } from '../dsp/binaural';
 import { octaveBands } from '../dsp/octave';
@@ -255,15 +255,22 @@ function analyse(n: NodeSpec, s: Signal, status: (t: string) => void): NodeResul
       const field = p.field === 'diffuse' ? 'diffuse' : 'free';
       status('Interaural…');
       const ia = interaural(s.data, s.right, s.fs, s.ref);
-      status('Left ear loudness…');
-      const sl = specificLoudnessEcma(s.data, s.fs, field, (f) => status(`Left ear… ${Math.round(f * 100)}%`));
-      status('Right ear loudness…');
-      const sr = specificLoudnessEcma(s.right, s.fs, field, (f) => status(`Right ear… ${Math.round(f * 100)}%`));
-      const L = loudnessFromSpecific(sl), R = loudnessFromSpecific(sr), B = loudnessFromSpecific(binauralSpecific(sl, sr));
-      return {
-        kind: 'binaural', label: s.label, unit: s.unit, field, ...ia,
-        NL: L.N, NR: R.N, NB: B.N, NtL: L.Nt, NtR: R.Nt, NtB: B.Nt, dtN: B.dt, specificB: B.specific, bandFreq: B.bandFreq,
-      };
+      const metric = ['roughness', 'fluctuation', 'tonality'].includes(String(p.metric)) ? String(p.metric) : 'loudness';
+      const ear = (name: string) => (f: number) => status(`${name} ear… ${Math.round(f * 100)}%`);
+      const out = { kind: 'binaural' as const, label: s.label, unit: s.unit, field, metric, ...ia };
+      if (metric === 'tonality') {
+        const l = tonalityEcma(s.data, s.fs, field, ear('Left')), r = tonalityEcma(s.right, s.fs, field, ear('Right'));
+        return { ...out, metricUnit: 'tu_HMS', vL: l.T, vR: r.T, vB: null, tL: l.Tl, tR: r.Tl, tB: null, dtM: l.dt };
+      }
+      const g = {
+        loudness: { spec: specificLoudnessEcma, red: loudnessFromSpecific, unit: 'sone_HMS', v: (r: { N: number }) => r.N, t: (r: { Nt: Float32Array }) => r.Nt },
+        roughness: { spec: specificRoughnessEcma, red: roughnessFromSpecific, unit: 'asper_HMS', v: (r: { R: number }) => r.R, t: (r: { Rt: Float32Array }) => r.Rt },
+        fluctuation: { spec: specificFluctuationEcma, red: fluctuationFromSpecific, unit: 'vacil_HMS', v: (r: { F: number }) => r.F, t: (r: { Ft: Float32Array }) => r.Ft },
+      }[metric as 'loudness' | 'roughness' | 'fluctuation'];
+      const sl = g.spec(s.data, s.fs, field, ear('Left')), sr = g.spec(s.right, s.fs, field, ear('Right'));
+      const L = g.red(sl), R = g.red(sr), B = g.red(binauralSpecific(sl, sr));
+      const val = (r: unknown) => g.v(r as never), ser = (r: unknown) => g.t(r as never);
+      return { ...out, metricUnit: g.unit, vL: val(L), vR: val(R), vB: val(B), tL: ser(L), tR: ser(R), tB: ser(B), dtM: B.dt };
     }
     case 'metricRpm': {
       needPressure(s, 'Psychoacoustic metric vs RPM');

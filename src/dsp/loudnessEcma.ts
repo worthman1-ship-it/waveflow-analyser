@@ -35,7 +35,8 @@ export function specificLoudnessEcma(
   return spec;
 }
 
-/** Binaural specific loudness (Formula 118): quadratic mean of the left and right channels. */
+/** Binaural specific loudness (Formula 118): quadratic mean of the left and right channels.
+ *  The same combination defines binaural specific roughness (112) and fluctuation strength (170). */
 export function binauralSpecific(a: Float64Array[], b: Float64Array[]): Float64Array[] {
   const nl = Math.min(a[0].length, b[0].length);
   return a.map((za, z) => Float64Array.from({ length: nl }, (_, l) => Math.sqrt((za[l] ** 2 + b[z][l] ** 2) / 2)));

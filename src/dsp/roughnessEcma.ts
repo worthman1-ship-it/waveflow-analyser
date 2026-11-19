@@ -215,6 +215,13 @@ export interface RoughnessEcmaResult {
 export function roughnessEcma(
   x: Float64Array, fs: number, field: 'free' | 'diffuse' = 'free', onProgress?: (f: number) => void,
 ): RoughnessEcmaResult {
+  return roughnessFromSpecific(specificRoughnessEcma(x, fs, field, onProgress));
+}
+
+/** Time-dependent specific roughness R'(l50, z) of one channel, spec[z][i] at 50 Hz. */
+export function specificRoughnessEcma(
+  x: Float64Array, fs: number, field: 'free' | 'diffuse' = 'free', onProgress?: (f: number) => void,
+): Float64Array[] {
   const x48 = resampleTo48k(x, fs);
   if (x48.length < FS) throw new Error('ECMA-418-2 roughness needs at least 1 s of signal');
   const hm = hearingModel(x48, field, SB, SH, (f) => onProgress?.(f * 0.9));
@@ -249,6 +256,12 @@ export function roughnessEcma(
       spec[z][i] = spec[z][i] * (1 - a) + spec[z][i - 1] * a;
     }
   }
+  return spec;
+}
+
+/** Roughness quantities (Formulae 111 and the 90th percentile) from specific roughness spec[z][i]. */
+export function roughnessFromSpecific(spec: Float64Array[]): RoughnessEcmaResult {
+  const T = spec[0].length;
   const Rt = new Float32Array(T);
   for (let i = 0; i < T; i++) { let s = 0; for (let z = 0; z < N_BANDS; z++) s += spec[z][i]; Rt[i] = DZ * s; } // (111)
   const tail = Float64Array.from(Rt.subarray(SKIP)).sort();

@@ -289,6 +289,15 @@ export interface FluctuationEcmaResult {
 export function fluctuationEcma(
   x: Float64Array, fs: number, field: 'free' | 'diffuse' = 'free', onProgress?: (f: number) => void,
 ): FluctuationEcmaResult {
+  const r = fluctuationFromSpecific(specificFluctuationEcma(x, fs, field, onProgress));
+  onProgress?.(1);
+  return r;
+}
+
+/** Time-dependent specific fluctuation strength F'(l50, z) of one channel, spec[z][i] at 50 Hz. */
+export function specificFluctuationEcma(
+  x: Float64Array, fs: number, field: 'free' | 'diffuse' = 'free', onProgress?: (f: number) => void,
+): Float64Array[] {
   const x48 = resampleTo48k(x, fs);
   if (x48.length < FS * 2) throw new Error('ECMA-418-2 fluctuation strength needs at least 2 s of signal');
   const hm = hearingModel(x48, field, SB, SH, (f) => onProgress?.(f * 0.6));
@@ -334,6 +343,12 @@ export function fluctuationEcma(
   }
   const a = Math.exp(-1 / (50 * TAU));
   for (let z = 0; z < N_BANDS; z++) for (let i = 1; i < T; i++) spec[z][i] = spec[z][i] * (1 - a) + spec[z][i - 1] * a; // (168)
+  return spec;
+}
+
+/** Fluctuation strength quantities (Formula 169 and the 90th percentile) from specific values spec[z][i]. */
+export function fluctuationFromSpecific(spec: Float64Array[]): FluctuationEcmaResult {
+  const T = spec[0].length;
   const Ft = new Float32Array(T);
   for (let i = 0; i < T; i++) { let s = 0; for (let z = 0; z < N_BANDS; z++) s += spec[z][i]; Ft[i] = DZ * s; } // (169)
   const tail = Float64Array.from(Ft.subarray(SKIP)).sort();
@@ -345,6 +360,5 @@ export function fluctuationEcma(
     for (let i = SKIP; i < T; i++) s += spec[z][i];
     specific[z] = s / (T - SKIP);
   }
-  onProgress?.(1);
   return { F, Ft, dt: 0.02, specific, bandFreq: Float32Array.from(BAND_FC), max: tail[tail.length - 1] };
 }

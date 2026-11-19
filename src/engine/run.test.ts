@@ -86,8 +86,17 @@ describe('GraphRunner: new analysis nodes', () => {
     expect(r.result.ild).toBeCloseTo(6.02, 1);
     expect(r.result.iacc).toBeGreaterThan(0.99);
     expect(r.result.itd * 1000).toBeCloseTo(0.5, 1);
-    expect(r.result.NB).toBeLessThan(r.result.NL);
-    expect(r.result.NB).toBeGreaterThan(r.result.NR);
+    expect(r.result.vB!).toBeLessThan(r.result.vL);
+    expect(r.result.vB!).toBeGreaterThan(r.result.vR);
+    // other metrics: binaural value lies between the ears (quadratic mean of specific values)
+    const am = (f: number, a: number) => Float64Array.from({ length: 48000 * 3 }, (_, i) => a * (1 + 0.9 * Math.sin(2 * Math.PI * 70 * i / 48000)) * Math.sin(2 * Math.PI * 1000 * i / 48000) * (f / f));
+    const rg = runGraph(48000, [am(1, 0.2), am(1, 0.05)], { rightChannel: 1 }, 'binaural', { metric: 'roughness', field: 'free' });
+    expect(rg.error).toBeUndefined();
+    if (rg.result.kind !== 'binaural') throw new Error('wrong result');
+    expect(rg.result.vB!).toBeLessThan(rg.result.vL);
+    expect(rg.result.vB!).toBeGreaterThan(rg.result.vR);
+    const to = runGraph(48000, [am(1, 0.2), am(1, 0.05)], { rightChannel: 1 }, 'binaural', { metric: 'tonality', field: 'free' });
+    expect(to.result.kind === 'binaural' && to.result.vB === null && to.result.vL > 0).toBe(true);
     expect(runGraph(f, [left, right], {}, 'binaural', {}).error).toMatch(/right/i);
   });
   it('STI takes an impulse response; annoyance needs Pa', { timeout: 200000 }, () => {
