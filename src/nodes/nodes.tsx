@@ -23,8 +23,9 @@ function Shell({ id, title, accent, input, output, children }: {
       {input && <Handle type="target" position={Position.Left} />}
       <div className="node-title">{title}</div>
       <div className="node-body">{children}</div>
-      {errors[id] && <div className="node-error">⚠ {errors[id]}</div>}
-      {!errors[id] && status[id] && <div className="node-status">{status[id]}</div>}
+      {/* a running computation supersedes the previous run's error, which would otherwise look current */}
+      {status[id] && <div className="node-status">{status[id]}</div>}
+      {!status[id] && errors[id] && <div className="node-error">⚠ {errors[id]}</div>}
       {output && <Handle type="source" position={Position.Right} />}
     </div>
   );
