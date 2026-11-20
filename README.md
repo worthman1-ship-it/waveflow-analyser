@@ -42,6 +42,8 @@ npm test         # DSP unit tests
 npm run build    # static build in dist/
 ```
 
+**Windows exe:** `powershell -File build-exe.ps1` builds the web app and publishes `publish\WaveFlow.exe`, a single self-contained file (about 36 MB) that serves the app on 127.0.0.1 (first free port from 5193) and opens your browser. Nothing is uploaded; close its window to quit. Source in `launcher/`.
+
 ## Accuracy notes
 
 - A/C weighting is a bilinear IIR with pre-warped poles: within 0.3 dB of IEC 61672 to 4 kHz and 0.7 dB to 12.5 kHz at 48 kHz.
