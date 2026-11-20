@@ -380,6 +380,41 @@ export function OctaveNode({ id, data }: NodeProps) {
   );
 }
 
+// ───────────────────────── Cepstrum ─────────────────────────
+export function CepstrumNode({ id, data }: NodeProps) {
+  const d = data as Data;
+  const set = useParams(id);
+  const r = useGraph().results[id];
+  const res = r?.kind === 'cepstrum' ? r : undefined;
+  return (
+    <Shell id={id} title="Cepstrum" accent="#0e7490" input>
+      <Field label="Frame (s)">
+        <input className="nodrag" type="number" min={0.05} step="any" value={Number(d.frameSec)} onChange={(e) => set({ frameSec: Number(e.target.value) || 1 })} />
+      </Field>
+      <Field label="Max quefrency (ms)">
+        <input className="nodrag" type="number" min={2} step="any" value={Number(d.maxMs)} onChange={(e) => set({ maxMs: Number(e.target.value) || 50 })} />
+      </Field>
+      <Field label="Ignore below (ms)">
+        <input className="nodrag" type="number" min={0} step="any" value={Number(d.minMs)} onChange={(e) => set({ minMs: Number(e.target.value) || 1 })} />
+      </Field>
+      {res && (
+        <>
+          <LinePlot yLabel="cepstrum" xLabel="ms" height={150} series={[{ label: 'c(q)', data: res.c, dt: res.dq * 1000, color: SERIES[0] }]} />
+          {res.fundamental && <div><b>Line spacing {res.fundamental.freq.toFixed(1)} Hz</b> (q = {(res.fundamental.q * 1000).toFixed(2)} ms)</div>}
+          <table className="results">
+            <tbody>
+              {res.peaks.map((p) => (
+                <tr key={p.q}><td>{(p.q * 1000).toFixed(2)} ms → {p.freq.toFixed(1)} Hz</td><td>{p.amp.toFixed(3)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="hint">Real cepstrum of the log spectrum averaged over {res.frames} Hann frames of {res.frameSec.toFixed(2)} s. A peak at q means spectral lines spaced 1/q apart (harmonics, sidebands); multiples of q are rahmonics. Strongest local maxima listed.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
 // ───────────────────────── Level statistics ─────────────────────────
 export function LevelStatsNode({ id }: NodeProps) {
   const r = useGraph().results[id];
@@ -792,6 +827,7 @@ export const nodeTypes = {
   orders: OrdersNode,
   metricRpm: MetricRpmNode,
   binaural: BinauralNode,
+  cepstrum: CepstrumNode,
   fluctuation: FluctuationNode,
   tonality: TonalityNode,
   impulsivity: ImpulsivityNode,
@@ -812,6 +848,7 @@ export const PALETTE: { type: NodeKind; label: string; defaults: Data }[] = [
   { type: 'levelStats', label: 'Level statistics (Leq, Lx)', defaults: {} },
   { type: 'annoyance', label: 'Psychoacoustic annoyance', defaults: {} },
   { type: 'binaural', label: 'Binaural analysis', defaults: { metric: 'loudness', field: 'free' } },
+  { type: 'cepstrum', label: 'Cepstrum', defaults: { frameSec: 1, maxMs: 50, minMs: 1 } },
   { type: 'metricRpm', label: 'Psychoacoustic metric vs RPM', defaults: { metric: 'loudnessTv', field: 'free', mode: 'tacho', ppr: 1, rpm0: 1000, rpm1: 3000 } },
   { type: 'orders', label: 'Order analysis (vs RPM)', defaults: { mode: 'tacho', ppr: 1, rpm0: 1000, rpm1: 3000, orders: '1,2,3,4', frameSec: 0.25 } },
   { type: 'fluctuationEcma', label: 'Fluctuation strength (ECMA-418-2)', defaults: { field: 'free' } },

@@ -99,6 +99,21 @@ describe('GraphRunner: new analysis nodes', () => {
     expect(to.result.kind === 'binaural' && to.result.vB === null && to.result.vL > 0).toBe(true);
     expect(runGraph(f, [left, right], {}, 'binaural', {}).error).toMatch(/right/i);
   });
+  it('cepstrum: harmonic series at 100 Hz peaks at 10 ms', () => {
+    const f = 16000, n = f * 4;
+    let s = 7;
+    const sig = Float64Array.from({ length: n }, (_, i) => {
+      s = (s * 1103515245 + 12345) & 0x7fffffff;
+      let v = 0.05 * (s / 0x7fffffff - 0.5);
+      for (let h = 1; h <= 30; h++) v += 0.1 * Math.sin((2 * Math.PI * 100 * h * i) / f);
+      return v;
+    });
+    const r = runGraph(f, [sig], {}, 'cepstrum', { frameSec: 1, maxMs: 50, minMs: 2 });
+    expect(r.error).toBeUndefined();
+    if (r.result.kind !== 'cepstrum') throw new Error('wrong result');
+    expect(r.result.fundamental!.q * 1000).toBeCloseTo(10, 0);
+    expect(r.result.fundamental!.freq).toBeCloseTo(100, -1);
+  });
   it('annoyance needs Pa', { timeout: 200000 }, () => {
     const bad = runGraph(fs, [x], { quantity: 'acceleration', ref: 1e-6 }, 'annoyance', {});
     expect(bad.error).toMatch(/pressure/i);

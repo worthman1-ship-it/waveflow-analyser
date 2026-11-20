@@ -18,6 +18,7 @@ import { fluctuationEcma, specificFluctuationEcma, fluctuationFromSpecific } fro
 import { loudnessEcma, specificLoudnessEcma, binauralSpecific, loudnessFromSpecific } from '../dsp/loudnessEcma';
 import { interaural } from '../dsp/binaural';
 import { octaveBands } from '../dsp/octave';
+import { cepstrum } from '../dsp/cepstrum';
 import { levelStatistics, psychoacousticAnnoyance } from '../dsp/levelStats';
 import { orderAnalysis } from '../dsp/orders';
 import { metricVsRpm } from '../dsp/metricRpm';
@@ -214,6 +215,10 @@ function analyse(n: NodeSpec, s: Signal, status: (t: string) => void): NodeResul
     case 'octave': {
       const r = octaveBands(s.data, s.fs, s.ref, Number(p.fraction) === 1 ? 1 : 3);
       return { kind: 'octave', label: s.label, unit: s.unit, ref: s.ref, ...r };
+    }
+    case 'cepstrum': {
+      const r = cepstrum(s.data, s.fs, Number(p.frameSec) || 1, (Number(p.maxMs) || 50) / 1000, (Number(p.minMs) || 1) / 1000);
+      return { kind: 'cepstrum', label: s.label, ...r };
     }
     case 'levelStats': {
       const r = levelStatistics(s.data, s.fs, s.ref);
