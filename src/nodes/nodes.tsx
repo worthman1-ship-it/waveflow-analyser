@@ -420,6 +420,65 @@ export function CepstrumNode({ id, data }: NodeProps) {
   );
 }
 
+// ───────────────────────── Survey events and source identification ─────────────────────────
+const hms = (t: number) => `${Math.floor(t / 3600)}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+export function EventsNode({ id, data }: NodeProps) {
+  const d = data as Data;
+  const set = useParams(id);
+  const r = useGraph().results[id];
+  const res = r?.kind === 'events' ? r : undefined;
+  const csv = () => {
+    if (!res) return;
+    const head = 'start_s,start,duration_s,LAeq,LAmax,SEL,peak_Hz,centroid_Hz,LF_share,tonal_prominence_dB,impulse_dB,rise_dB,fall_dB,steadiness_dB,source';
+    const rows = res.events.map((e) => [e.t0, hms(e.t0), e.dur, e.laeq, e.lamax, e.sel, e.fPeak, e.centroid, e.lfShare, e.tonalProm, e.impulse, e.rise, e.fall, e.steadiness, `"${e.source}"`].map((v) => (typeof v === 'number' ? +v.toFixed(2) : v)).join(','));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([[head, ...rows].join('\n')], { type: 'text/csv' }));
+    a.download = 'events.csv'; a.click(); URL.revokeObjectURL(a.href);
+  };
+  return (
+    <Shell id={id} title="Survey events & source ID" accent="#b91c1c" input>
+      <div className="row">
+        <Field label="Above background (dB)">
+          <input className="nodrag" type="number" min={1} step="any" value={Number(d.threshold)} onChange={(e) => set({ threshold: Number(e.target.value) || 10 })} />
+        </Field>
+        <Field label="Min duration (s)">
+          <input className="nodrag" type="number" min={0.25} step="any" value={Number(d.minDur)} onChange={(e) => set({ minDur: Number(e.target.value) || 2 })} />
+        </Field>
+        <Field label="Background window (min)">
+          <input className="nodrag" type="number" min={1} step="any" value={Number(d.windowMin)} onChange={(e) => set({ windowMin: Number(e.target.value) || 5 })} />
+        </Field>
+      </div>
+      {res && (
+        <>
+          <div className="info">{res.label} · {hms(res.duration)} · LAeq {dB(res.laeq)} dB · {res.events.length} events</div>
+          <LinePlot yLabel="dB(A)" xLabel="s" height={140} series={[
+            { label: 'LAeq 0.25 s', data: res.level, dt: res.dt, color: SERIES[0] },
+            { label: 'Background L90', data: res.background, dt: res.dt, color: SERIES[1] },
+          ]} />
+          <table className="results">
+            <thead><tr><td>Source</td><td>n</td><td>Contribution</td></tr></thead>
+            <tbody>
+              {res.classes.map((c) => <tr key={c.source}><td>{c.source}</td><td>{c.count}</td><td>{dB(c.contribution)} dB(A)</td></tr>)}
+            </tbody>
+          </table>
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            <table className="results">
+              <thead><tr><td>Start</td><td>Dur</td><td>LAeq / LAmax</td><td>f peak</td><td>Source</td></tr></thead>
+              <tbody>
+                {res.events.slice(0, 500).map((e) => (
+                  <tr key={e.t0}><td>{hms(e.t0)}</td><td>{e.dur.toFixed(1)} s</td><td>{dB(e.laeq)} / {dB(e.lamax)}</td><td>{Math.round(e.fPeak)} Hz</td><td>{e.source}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button className="nodrag" onClick={csv}>Download events (CSV)</button>
+          <div className="hint">Events are blocks more than the threshold above the sliding L90 background. Sources are assigned by fixed rules from duration, rise and fall, spectrum, tonal prominence and impulse (no training, not calibrated on your site): check them against logs or listening. Connect the unweighted signal in Pa.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
 // ───────────────────────── Calibration tone ─────────────────────────
 export function CalibToneNode({ id, data }: NodeProps) {
   const d = data as Data;
@@ -869,6 +928,7 @@ export const nodeTypes = {
   binaural: BinauralNode,
   cepstrum: CepstrumNode,
   calibTone: CalibToneNode,
+  events: EventsNode,
   fluctuation: FluctuationNode,
   tonality: TonalityNode,
   impulsivity: ImpulsivityNode,
@@ -889,6 +949,7 @@ export const PALETTE: { type: NodeKind; label: string; defaults: Data }[] = [
   { type: 'levelStats', label: 'Level statistics (Leq, Lx)', defaults: {} },
   { type: 'annoyance', label: 'Psychoacoustic annoyance', defaults: {} },
   { type: 'binaural', label: 'Binaural analysis', defaults: { metric: 'loudness', field: 'free' } },
+  { type: 'events', label: 'Survey events & source ID', defaults: { threshold: 10, minDur: 2, windowMin: 5 } },
   { type: 'calibTone', label: 'Calibration tone', defaults: { level: 1 } },
   { type: 'cepstrum', label: 'Cepstrum', defaults: { frameSec: 1, maxMs: 50, minMs: 1 } },
   { type: 'metricRpm', label: 'Psychoacoustic metric vs RPM', defaults: { metric: 'loudnessTv', field: 'free', mode: 'tacho', ppr: 1, rpm0: 1000, rpm1: 3000 } },

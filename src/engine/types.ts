@@ -12,6 +12,7 @@ import type { LevelStatsResult } from '../dsp/levelStats';
 import type { OrderResult } from '../dsp/orders';
 import type { MetricRpmResult } from '../dsp/metricRpm';
 import type { InterauralResult } from '../dsp/binaural';
+import type { EventsResult } from '../dsp/events';
 import type { CalibToneResult } from '../dsp/calibTone';
 import type { CepstrumResult } from '../dsp/cepstrum';
 
@@ -32,7 +33,7 @@ export interface SpectrogramParams { nfft: number; overlap: number; range: numbe
 export interface LoudnessParams { field: 'free' | 'diffuse'; blockSec: number }
 export interface RoughnessParams { overlap: number }
 
-export type NodeKind = 'wavSource' | 'weighting' | 'level' | 'spectrogram' | 'loudness' | 'roughness' | 'fluctuation' | 'tonality' | 'impulsivity' | 'loudnessTv' | 'roughnessEcma' | 'tonalityEcma' | 'fluctuationEcma' | 'loudnessEcma' | 'octave' | 'levelStats' | 'annoyance' | 'orders' | 'metricRpm' | 'binaural' | 'cepstrum' | 'calibTone';
+export type NodeKind = 'wavSource' | 'weighting' | 'level' | 'spectrogram' | 'loudness' | 'roughness' | 'fluctuation' | 'tonality' | 'impulsivity' | 'loudnessTv' | 'roughnessEcma' | 'tonalityEcma' | 'fluctuationEcma' | 'loudnessEcma' | 'octave' | 'levelStats' | 'annoyance' | 'orders' | 'metricRpm' | 'binaural' | 'cepstrum' | 'calibTone' | 'events';
 
 export interface NodeSpec { id: string; type: NodeKind; params: Record<string, unknown> }
 export interface EdgeSpec { source: string; target: string }
@@ -102,10 +103,11 @@ export type BinauralResultMsg = InterauralResult & {
 };
 export type CepstrumResultMsg = CepstrumResult & { kind: 'cepstrum'; label: string };
 export type CalibToneResultMsg = CalibToneResult & { kind: 'calibTone'; label: string; unit: string; level: number; fullScale: number; suggested: number };
+export type EventsResultMsg = EventsResult & { kind: 'events'; label: string };
 export interface SourceResult {
   kind: 'source'; fs: number; channels: number; duration: number; bits: number; format: string; peak: number;
 }
-export type NodeResult = LevelResult | SpectrogramResult | LoudnessResult | RoughnessResultMsg | FluctuationResultMsg | TonalityResultMsg | ImpulsivityResultMsg | LoudnessTvResultMsg | RoughnessEcmaResultMsg | TonalityEcmaResultMsg | FluctuationEcmaResultMsg | LoudnessEcmaResultMsg | OctaveResultMsg | LevelStatsResultMsg | AnnoyanceResultMsg | OrdersResultMsg | MetricRpmResultMsg | BinauralResultMsg | CepstrumResultMsg | CalibToneResultMsg | SourceResult;
+export type NodeResult = LevelResult | SpectrogramResult | LoudnessResult | RoughnessResultMsg | FluctuationResultMsg | TonalityResultMsg | ImpulsivityResultMsg | LoudnessTvResultMsg | RoughnessEcmaResultMsg | TonalityEcmaResultMsg | FluctuationEcmaResultMsg | LoudnessEcmaResultMsg | OctaveResultMsg | LevelStatsResultMsg | AnnoyanceResultMsg | OrdersResultMsg | MetricRpmResultMsg | BinauralResultMsg | CepstrumResultMsg | CalibToneResultMsg | EventsResultMsg | SourceResult;
 
 export type WorkerIn =
   | { type: 'file'; fileId: string; buffer: ArrayBuffer }

@@ -19,6 +19,7 @@ import { loudnessEcma, specificLoudnessEcma, binauralSpecific, loudnessFromSpeci
 import { interaural } from '../dsp/binaural';
 import { octaveBands } from '../dsp/octave';
 import { cepstrum } from '../dsp/cepstrum';
+import { detectEvents } from '../dsp/events';
 import { findCalibTone } from '../dsp/calibTone';
 import { levelStatistics, psychoacousticAnnoyance } from '../dsp/levelStats';
 import { orderAnalysis } from '../dsp/orders';
@@ -216,6 +217,13 @@ function analyse(n: NodeSpec, s: Signal, status: (t: string) => void): NodeResul
     case 'octave': {
       const r = octaveBands(s.data, s.fs, s.ref, Number(p.fraction) === 1 ? 1 : 3);
       return { kind: 'octave', label: s.label, unit: s.unit, ref: s.ref, ...r };
+    }
+    case 'events': {
+      needPressure(s, 'Event detection');
+      if (s.weighting !== 'Z' && s.weighting !== 'A') throw new Error('Event detection needs an unweighted (or A-weighted) signal');
+      const aw = s.weighting === 'A' ? s.data : sosFilter(weightingSos('A', s.fs), s.data);
+      const r = detectEvents(s.data, aw, s.fs, s.ref, { threshold: Number(p.threshold) || 10, minDur: Number(p.minDur) || 2, windowSec: (Number(p.windowMin) || 5) * 60 });
+      return { kind: 'events', label: s.label, ...r };
     }
     case 'calibTone': {
       const level = Number(p.level) || 1, t = findCalibTone(s.data, s.fs), fsc = s.fullScale ?? 1;

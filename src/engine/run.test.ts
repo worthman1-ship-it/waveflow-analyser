@@ -131,3 +131,24 @@ describe('GraphRunner: new analysis nodes', () => {
     expect(pa.result.kind === 'annoyance' && pa.result.PA > 0).toBe(true);
   });
 });
+
+describe('GraphRunner: survey event detection', () => {
+  it('finds a pass-by, a bang and a steady tone in background noise and labels them', { timeout: 120000 }, () => {
+    const f = 8000, sec = 150, n = f * sec;
+    let s = 99;
+    const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff - 0.5; };
+    const x = Float64Array.from({ length: n }, () => 0.004 * rnd());
+    for (let i = 30 * f; i < 38 * f; i++) x[i] += 0.3 * rnd() * Math.sin((Math.PI * (i - 30 * f)) / (8 * f)) ** 2; // 8 s swell
+    for (let i = 70 * f; i < 70 * f + 400; i++) x[i] += 3 * rnd() * Math.exp(-(i - 70 * f) / 100); // 50 ms bang
+    for (let i = 100 * f; i < 130 * f; i++) x[i] += 0.1 * Math.sin((2 * Math.PI * 1000 * i) / f); // steady tone
+    const r = runGraph(f, [x], {}, 'events', { threshold: 10, minDur: 2, windowMin: 1 });
+    expect(r.error).toBeUndefined();
+    if (r.result.kind !== 'events') throw new Error('wrong result');
+    const ev = r.result.events;
+    const at = (t: number) => ev.find((e) => e.t0 <= t + 1 && e.t0 + e.dur >= t - 1);
+    expect(at(34)?.source).toBe('Road vehicle pass-by');
+    expect(at(70)?.source).toMatch(/Impulsive/);
+    expect(at(115)?.source).toMatch(/Tonal/);
+    expect(ev.length).toBe(3);
+  });
+});
