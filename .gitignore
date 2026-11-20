@@ -1,2 +1,5 @@
 node_modules
 dist
+publish
+launcher/bin
+launcher/obj
