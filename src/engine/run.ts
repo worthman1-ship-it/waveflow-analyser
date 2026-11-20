@@ -19,7 +19,6 @@ import { loudnessEcma, specificLoudnessEcma, binauralSpecific, loudnessFromSpeci
 import { interaural } from '../dsp/binaural';
 import { octaveBands } from '../dsp/octave';
 import { levelStatistics, psychoacousticAnnoyance } from '../dsp/levelStats';
-import { stiFromImpulseResponse } from '../dsp/sti';
 import { orderAnalysis } from '../dsp/orders';
 import { metricVsRpm } from '../dsp/metricRpm';
 import type { EdgeSpec, NodeResult, NodeSpec, Signal, WavParams, WorkerOut } from './types';
@@ -235,10 +234,6 @@ function analyse(n: NodeSpec, s: Signal, status: (t: string) => void): NodeResul
       const f5 = pct5(fluctuationStrength(s.data, s.fs).F);
       const a = psychoacousticAnnoyance(n5, s5, f5, r5);
       return { kind: 'annoyance', label: s.label, PA: a.PA, N5: n5, S5: s5, R5: r5, F5: f5, wS: a.wS, wFR: a.wFR };
-    }
-    case 'sti': {
-      const r = stiFromImpulseResponse(s.data, s.fs);
-      return { kind: 'sti', label: s.label, ...r };
     }
     case 'orders': {
       const orders = String(p.orders ?? '1,2,3').split(/[\s,;]+/).map(Number).filter((v) => isFinite(v) && v > 0).slice(0, 6);

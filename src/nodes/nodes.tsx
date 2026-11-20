@@ -428,28 +428,6 @@ export function AnnoyanceNode({ id }: NodeProps) {
   );
 }
 
-// ───────────────────────── Speech transmission index ─────────────────────────
-export function StiNode({ id }: NodeProps) {
-  const r = useGraph().results[id];
-  const res = r?.kind === 'sti' ? r : undefined;
-  return (
-    <Shell id={id} title="Speech transmission index (STI)" accent="#0e7490" input>
-      {res && (
-        <>
-          <table className="results">
-            <tbody>
-              <tr><td>STI</td><td><b>{res.sti.toFixed(2)}</b> ({res.rating})</td></tr>
-              {res.bands.map((f, i) => <tr key={f}><td>MTI {f} Hz</td><td>{res.mti[i].toFixed(2)}</td></tr>)}
-            </tbody>
-          </table>
-          <LinePlot yLabel="m(F), 1 kHz band" xLabel="modulation freq #" height={110} series={[{ label: 'm(F) 1 kHz', data: res.mtf[3], dt: 1, color: SERIES[0] }]} yMin={0} yMax={1} />
-          <div className="hint">Feed this node a room <b>impulse response</b> (e.g. a deconvolved sweep). Indirect method, IEC 60268-16, male weights; noise and masking are not applied. Needs fs ≥ 22.7 kHz.</div>
-        </>
-      )}
-    </Shell>
-  );
-}
-
 // ───────────────────────── Order analysis / vs RPM ─────────────────────────
 export function OrdersNode({ id, data }: NodeProps) {
   const d = data as Data;
@@ -811,7 +789,6 @@ export const nodeTypes = {
   octave: OctaveNode,
   levelStats: LevelStatsNode,
   annoyance: AnnoyanceNode,
-  sti: StiNode,
   orders: OrdersNode,
   metricRpm: MetricRpmNode,
   binaural: BinauralNode,
@@ -834,7 +811,6 @@ export const PALETTE: { type: NodeKind; label: string; defaults: Data }[] = [
   { type: 'octave', label: 'Octave / third-octave bands', defaults: { fraction: 3 } },
   { type: 'levelStats', label: 'Level statistics (Leq, Lx)', defaults: {} },
   { type: 'annoyance', label: 'Psychoacoustic annoyance', defaults: {} },
-  { type: 'sti', label: 'Speech transmission index (from IR)', defaults: {} },
   { type: 'binaural', label: 'Binaural analysis', defaults: { metric: 'loudness', field: 'free' } },
   { type: 'metricRpm', label: 'Psychoacoustic metric vs RPM', defaults: { metric: 'loudnessTv', field: 'free', mode: 'tacho', ppr: 1, rpm0: 1000, rpm1: 3000 } },
   { type: 'orders', label: 'Order analysis (vs RPM)', defaults: { mode: 'tacho', ppr: 1, rpm0: 1000, rpm1: 3000, orders: '1,2,3,4', frameSec: 0.25 } },

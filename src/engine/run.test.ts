@@ -99,10 +99,7 @@ describe('GraphRunner: new analysis nodes', () => {
     expect(to.result.kind === 'binaural' && to.result.vB === null && to.result.vL > 0).toBe(true);
     expect(runGraph(f, [left, right], {}, 'binaural', {}).error).toMatch(/right/i);
   });
-  it('STI takes an impulse response; annoyance needs Pa', { timeout: 200000 }, () => {
-    const ir = Float64Array.from({ length: fs }, (_, i) => (i === 0 ? 1 : 0));
-    const st = runGraph(fs, [ir], { quantity: 'other', ref: 1 }, 'sti', {});
-    expect(st.result.kind === 'sti' && st.result.sti > 0.9).toBe(true);
+  it('annoyance needs Pa', { timeout: 200000 }, () => {
     const bad = runGraph(fs, [x], { quantity: 'acceleration', ref: 1e-6 }, 'annoyance', {});
     expect(bad.error).toMatch(/pressure/i);
     const pa = runGraph(fs, [x], {}, 'annoyance', {});

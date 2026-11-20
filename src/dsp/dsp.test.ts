@@ -11,7 +11,6 @@ import { tonalityEcma } from './tonalityEcma';
 import { loudnessEcma } from './loudnessEcma';
 import { octaveBands } from './octave';
 import { levelStatistics, psychoacousticAnnoyance } from './levelStats';
-import { stiFromImpulseResponse } from './sti';
 import { orderAnalysis } from './orders';
 import { fluctuationEcma } from './fluctuationEcma';
 import { fluctuationStrength } from './fluctuation';
@@ -339,20 +338,6 @@ describe('level statistics and annoyance', () => {
   });
 });
 
-describe('STI', () => {
-  it('an ideal impulse gives STI 1; a reverberant tail lowers it', () => {
-    const fs = 48000;
-    const d = new Float64Array(fs); d[0] = 1;
-    expect(stiFromImpulseResponse(d, fs).sti).toBeGreaterThan(0.97);
-    let seed = 7;
-    const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296) - 0.5;
-    const rt = (T: number) => Float64Array.from({ length: fs * 2 }, (_, i) => rnd() * Math.exp((-6.9 * i) / (fs * T)));
-    const s1 = stiFromImpulseResponse(rt(0.5), fs).sti, s2 = stiFromImpulseResponse(rt(2.5), fs).sti;
-    expect(s1).toBeLessThan(0.8);
-    expect(s2).toBeLessThan(s1);
-    expect(s2).toBeGreaterThan(0.1);
-  });
-});
 
 describe('order analysis', () => {
   // Engine run-up 1200 -> 3000 rpm over 10 s: order 2 (amplitude 1) and order 4.5 (amplitude 0.5), plus a tacho at 1 ppr.
