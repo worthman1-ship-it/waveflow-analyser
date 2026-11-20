@@ -44,6 +44,10 @@ npm run build    # static build in dist/
 
 **Windows exe:** `powershell -File build-exe.ps1` builds the web app and publishes `publish\WaveFlow.exe`, a single self-contained file (about 36 MB) that serves the app on 127.0.0.1 (first free port from 5193) and opens your browser. Nothing is uploaded; close its window to quit. Source in `launcher/`.
 
+## Licence and disclaimer
+
+MIT licence (see `LICENSE`); third-party code is credited in `THIRD_PARTY_NOTICES.md`. The software is provided as is, without warranty, and the authors accept no liability for its use. It is not a certified measurement instrument: results are for engineering evaluation and must not be relied on for regulatory compliance, legal evidence or safety decisions without independent verification.
+
 ## Accuracy notes
 
 - A/C weighting is a bilinear IIR with pre-warped poles: within 0.3 dB of IEC 61672 to 4 kHz and 0.7 dB to 12.5 kHz at 48 kHz.
