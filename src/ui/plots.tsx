@@ -115,39 +115,51 @@ function rampColor(t: number): [number, number, number] {
   return [0, 1, 2].map((k) => Math.round(ch(a, k) + (ch(b, k) - ch(a, k)) * f)) as [number, number, number];
 }
 
-export function Heatmap({ db, frames, bins, dt, df, top, range, unitLabel, width = 360, height = 200 }: {
+export function Heatmap({ db, frames, bins, dt, df, top, range, unitLabel, width = 360, height = 200, logF = false }: {
   db: Float32Array; frames: number; bins: number; dt: number; df: number; top: number; range: number; unitLabel: string;
-  width?: number; height?: number;
+  width?: number; height?: number; logF?: boolean;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<{ f: number; b: number } | null>(null);
   const pw = width - PAD.l - PAD.r, ph = height - PAD.t - PAD.b;
   const tMax = frames * dt, fMax = bins * df;
+  const fMin = Math.min(Math.max(df, 20), fMax / 2);
+  const rows = Math.max(1, Math.round(ph));
+  /** Frequency (Hz) at vertical fraction u (0 = bottom, 1 = top) on the log axis. */
+  const logHz = (u: number) => fMin * (fMax / fMin) ** u;
 
   useEffect(() => {
     const g = setupCanvas(ref.current!, width, height);
     g.fillStyle = SURFACE; g.fillRect(0, 0, width, height);
-    const img = new ImageData(frames, bins);
+    const nRows = logF ? rows : bins;
+    const img = new ImageData(frames, nRows);
     for (let f = 0; f < frames; f++) {
-      for (let b = 0; b < bins; b++) {
+      for (let y = 0; y < nRows; y++) {
+        const b = logF ? Math.min(bins - 1, Math.floor(logHz((y + 0.5) / nRows) / df)) : y;
         const [r, gg, bb] = rampColor((db[f * bins + b] - (top - range)) / range);
-        const p = ((bins - 1 - b) * frames + f) * 4;
+        const p = ((nRows - 1 - y) * frames + f) * 4;
         img.data[p] = r; img.data[p + 1] = gg; img.data[p + 2] = bb; img.data[p + 3] = 255;
       }
     }
     const off = document.createElement('canvas');
-    off.width = frames; off.height = bins;
+    off.width = frames; off.height = nRows;
     off.getContext('2d')!.putImageData(img, 0, 0);
     g.imageSmoothingEnabled = false;
     g.drawImage(off, PAD.l, PAD.t, pw, ph);
     g.font = '10px system-ui'; g.fillStyle = INK;
     g.textAlign = 'right'; g.textBaseline = 'middle';
-    for (const v of niceTicks(0, fMax)) g.fillText(fmt(v), PAD.l - 4, PAD.t + (1 - v / fMax) * ph);
+    if (logF) {
+      for (const v of [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]) {
+        if (v >= fMin && v <= fMax) g.fillText(fmt(v), PAD.l - 4, PAD.t + (1 - Math.log(v / fMin) / Math.log(fMax / fMin)) * ph);
+      }
+    } else {
+      for (const v of niceTicks(0, fMax)) g.fillText(fmt(v), PAD.l - 4, PAD.t + (1 - v / fMax) * ph);
+    }
     g.textAlign = 'center'; g.textBaseline = 'top';
     for (const t of niceTicks(0, tMax, 5)) g.fillText(fmt(t), PAD.l + (t / tMax) * pw, height - PAD.b + 4);
     g.save(); g.translate(10, PAD.t + ph / 2); g.rotate(-Math.PI / 2); g.textBaseline = 'middle'; g.fillText('Hz', 0, 0); g.restore();
     g.textAlign = 'right'; g.fillText('s', width - PAD.r, height - 11);
-  }, [db, frames, bins, dt, df, top, range, width, height, pw, ph, fMax, tMax]);
+  }, [db, frames, bins, dt, df, top, range, width, height, pw, ph, fMax, tMax, logF, fMin, rows]);
 
   return (
     <div className="plot nodrag">
@@ -156,7 +168,8 @@ export function Heatmap({ db, frames, bins, dt, df, top, range, unitLabel, width
         onMouseMove={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
           const f = Math.floor(((e.clientX - r.left - PAD.l) / pw) * frames);
-          const b = Math.floor((1 - (e.clientY - r.top - PAD.t) / ph) * bins);
+          const u = 1 - (e.clientY - r.top - PAD.t) / ph;
+          const b = logF ? (u >= 0 && u <= 1 ? Math.min(bins - 1, Math.floor(logHz(u) / df)) : -1) : Math.floor(u * bins);
           setHover(f >= 0 && f < frames && b >= 0 && b < bins ? { f, b } : null);
         }}
         onMouseLeave={() => setHover(null)}

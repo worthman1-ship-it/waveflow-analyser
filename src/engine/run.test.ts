@@ -114,6 +114,15 @@ describe('GraphRunner: new analysis nodes', () => {
     expect(r.result.fundamental!.q * 1000).toBeCloseTo(10, 0);
     expect(r.result.fundamental!.freq).toBeCloseTo(100, -1);
   });
+  it('calibration tone: 1 kHz at 0.5 of full scale, 1 Pa level', () => {
+    const f = 16000, sig = tone(1000, 0.5 * Math.SQRT2, f, 4); // rms 0.5 of full scale (full scale = 1 Pa here, so 0.5 Pa)
+    const r = runGraph(f, [sig], { fullScale: 1 }, 'calibTone', { level: 1 });
+    expect(r.error).toBeUndefined();
+    if (r.result.kind !== 'calibTone') throw new Error('wrong result');
+    expect(r.result.freq).toBeCloseTo(1000, 0);
+    expect(r.result.toneRms).toBeCloseTo(0.5, 2);
+    expect(r.result.suggested).toBeCloseTo(2, 1);
+  });
   it('annoyance needs Pa', { timeout: 200000 }, () => {
     const bad = runGraph(fs, [x], { quantity: 'acceleration', ref: 1e-6 }, 'annoyance', {});
     expect(bad.error).toMatch(/pressure/i);

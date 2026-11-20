@@ -19,6 +19,7 @@ import { loudnessEcma, specificLoudnessEcma, binauralSpecific, loudnessFromSpeci
 import { interaural } from '../dsp/binaural';
 import { octaveBands } from '../dsp/octave';
 import { cepstrum } from '../dsp/cepstrum';
+import { findCalibTone } from '../dsp/calibTone';
 import { levelStatistics, psychoacousticAnnoyance } from '../dsp/levelStats';
 import { orderAnalysis } from '../dsp/orders';
 import { metricVsRpm } from '../dsp/metricRpm';
@@ -88,7 +89,7 @@ export class GraphRunner {
         const data = new Float64Array(src.length);
         for (let i = 0; i < src.length; i++) data[i] = src[i] * p.fullScale;
         out = {
-          fs: w.fs, data, quantity: p.quantity, ref: p.ref, weighting: 'Z',
+          fs: w.fs, data, quantity: p.quantity, ref: p.ref, weighting: 'Z', fullScale: p.fullScale,
           unit: unitFor(p.quantity), label: `${p.fileName ?? 'wav'} ch${ch + 1}`,
         };
         const tc = p.tachoChannel ?? -1;
@@ -215,6 +216,10 @@ function analyse(n: NodeSpec, s: Signal, status: (t: string) => void): NodeResul
     case 'octave': {
       const r = octaveBands(s.data, s.fs, s.ref, Number(p.fraction) === 1 ? 1 : 3);
       return { kind: 'octave', label: s.label, unit: s.unit, ref: s.ref, ...r };
+    }
+    case 'calibTone': {
+      const level = Number(p.level) || 1, t = findCalibTone(s.data, s.fs), fsc = s.fullScale ?? 1;
+      return { kind: 'calibTone', label: s.label, unit: s.unit, level, fullScale: fsc, suggested: (fsc * level) / t.toneRms, ...t };
     }
     case 'cepstrum': {
       const r = cepstrum(s.data, s.fs, Number(p.frameSec) || 1, (Number(p.maxMs) || 50) / 1000, (Number(p.minMs) || 1) / 1000);

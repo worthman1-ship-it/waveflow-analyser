@@ -12,6 +12,7 @@ import type { LevelStatsResult } from '../dsp/levelStats';
 import type { OrderResult } from '../dsp/orders';
 import type { MetricRpmResult } from '../dsp/metricRpm';
 import type { InterauralResult } from '../dsp/binaural';
+import type { CalibToneResult } from '../dsp/calibTone';
 import type { CepstrumResult } from '../dsp/cepstrum';
 
 export type Quantity = 'acceleration' | 'velocity' | 'displacement' | 'pressure' | 'other';
@@ -31,7 +32,7 @@ export interface SpectrogramParams { nfft: number; overlap: number; range: numbe
 export interface LoudnessParams { field: 'free' | 'diffuse'; blockSec: number }
 export interface RoughnessParams { overlap: number }
 
-export type NodeKind = 'wavSource' | 'weighting' | 'level' | 'spectrogram' | 'loudness' | 'roughness' | 'fluctuation' | 'tonality' | 'impulsivity' | 'loudnessTv' | 'roughnessEcma' | 'tonalityEcma' | 'fluctuationEcma' | 'loudnessEcma' | 'octave' | 'levelStats' | 'annoyance' | 'orders' | 'metricRpm' | 'binaural' | 'cepstrum';
+export type NodeKind = 'wavSource' | 'weighting' | 'level' | 'spectrogram' | 'loudness' | 'roughness' | 'fluctuation' | 'tonality' | 'impulsivity' | 'loudnessTv' | 'roughnessEcma' | 'tonalityEcma' | 'fluctuationEcma' | 'loudnessEcma' | 'octave' | 'levelStats' | 'annoyance' | 'orders' | 'metricRpm' | 'binaural' | 'cepstrum' | 'calibTone';
 
 export interface NodeSpec { id: string; type: NodeKind; params: Record<string, unknown> }
 export interface EdgeSpec { source: string; target: string }
@@ -50,6 +51,8 @@ export interface Signal {
   tacho?: Float64Array;
   /** Right ear channel of a binaural pair (the signal itself is the left ear), calibrated like `data`. */
   right?: Float64Array;
+  /** Physical value of digital full scale used to calibrate the source (for the calibration-tone node). */
+  fullScale?: number;
 }
 
 export interface LevelResult {
@@ -98,10 +101,11 @@ export type BinauralResultMsg = InterauralResult & {
   tL: Float32Array; tR: Float32Array; tB: Float32Array | null; dtM: number;
 };
 export type CepstrumResultMsg = CepstrumResult & { kind: 'cepstrum'; label: string };
+export type CalibToneResultMsg = CalibToneResult & { kind: 'calibTone'; label: string; unit: string; level: number; fullScale: number; suggested: number };
 export interface SourceResult {
   kind: 'source'; fs: number; channels: number; duration: number; bits: number; format: string; peak: number;
 }
-export type NodeResult = LevelResult | SpectrogramResult | LoudnessResult | RoughnessResultMsg | FluctuationResultMsg | TonalityResultMsg | ImpulsivityResultMsg | LoudnessTvResultMsg | RoughnessEcmaResultMsg | TonalityEcmaResultMsg | FluctuationEcmaResultMsg | LoudnessEcmaResultMsg | OctaveResultMsg | LevelStatsResultMsg | AnnoyanceResultMsg | OrdersResultMsg | MetricRpmResultMsg | BinauralResultMsg | CepstrumResultMsg | SourceResult;
+export type NodeResult = LevelResult | SpectrogramResult | LoudnessResult | RoughnessResultMsg | FluctuationResultMsg | TonalityResultMsg | ImpulsivityResultMsg | LoudnessTvResultMsg | RoughnessEcmaResultMsg | TonalityEcmaResultMsg | FluctuationEcmaResultMsg | LoudnessEcmaResultMsg | OctaveResultMsg | LevelStatsResultMsg | AnnoyanceResultMsg | OrdersResultMsg | MetricRpmResultMsg | BinauralResultMsg | CepstrumResultMsg | CalibToneResultMsg | SourceResult;
 
 export type WorkerIn =
   | { type: 'file'; fileId: string; buffer: ArrayBuffer }

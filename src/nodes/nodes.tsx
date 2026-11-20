@@ -193,6 +193,11 @@ export function SpectrogramNode({ id, data }: NodeProps) {
             {[0, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50].map((n) => <option key={n} value={n}>{n ? `${n} Hz` : 'Nyquist'}</option>)}
           </select>
         </Field>
+        <Field label="Hz axis">
+          <select className="nodrag" value={d.uiLog ? 1 : 0} onChange={(e) => set({ uiLog: e.target.value === '1' })}>
+            <option value={0}>Linear</option><option value={1}>Log</option>
+          </select>
+        </Field>
         <Field label="Range dB">
           <select className="nodrag" value={range} onChange={(e) => set({ uiRange: Number(e.target.value) })}>
             {[30, 40, 60, 80, 100, 120].map((n) => <option key={n} value={n}>{n}</option>)}
@@ -203,7 +208,7 @@ export function SpectrogramNode({ id, data }: NodeProps) {
         <>
           <div className="info">{res.label} · Δf {res.avgDf.toFixed(2)} Hz · Hann · bin RMS</div>
           <Heatmap db={res.db} frames={res.frames} bins={res.bins} dt={res.dt} df={res.df}
-            top={Math.ceil(res.maxDb)} range={range} unitLabel="dB" />
+            top={Math.ceil(res.maxDb)} range={range} unitLabel="dB" logF={!!d.uiLog} />
           <LinePlot yLabel="dB" xLabel="Hz" height={120}
             yMin={Math.ceil(res.maxDb) - range} yMax={Math.ceil(res.maxDb)}
             series={[{ label: 'Average spectrum', data: res.avgDb.subarray(0, Math.ceil((res.bins * res.df) / res.avgDf)), dt: res.avgDf, x0: -res.avgDf / 2, color: SERIES[0] }]} />
@@ -409,6 +414,41 @@ export function CepstrumNode({ id, data }: NodeProps) {
             </tbody>
           </table>
           <div className="hint">Real cepstrum of the log spectrum averaged over {res.frames} Hann frames of {res.frameSec.toFixed(2)} s. A peak at q means spectral lines spaced 1/q apart (harmonics, sidebands); multiples of q are rahmonics. Strongest local maxima listed.</div>
+        </>
+      )}
+    </Shell>
+  );
+}
+
+// ───────────────────────── Calibration tone ─────────────────────────
+export function CalibToneNode({ id, data }: NodeProps) {
+  const d = data as Data;
+  const set = useParams(id);
+  const { updateNodeData, getEdges, getNode } = useReactFlow();
+  const r = useGraph().results[id];
+  const res = r?.kind === 'calibTone' ? r : undefined;
+  return (
+    <Shell id={id} title="Calibration tone" accent="#475569" input>
+      <Field label="Calibrator level (RMS, signal units)">
+        <input className="nodrag" type="number" min={0} step="any" value={Number(d.level)} onChange={(e) => set({ level: Number(e.target.value) || 1 })} />
+      </Field>
+      {res && (
+        <>
+          <table className="results">
+            <tbody>
+              <tr><td>Tone frequency</td><td><b>{res.freq.toFixed(1)} Hz</b></td></tr>
+              <tr><td>Tone RMS</td><td>{+res.toneRms.toPrecision(4)} {res.unit}</td></tr>
+              <tr><td>Tone share of power</td><td>{(100 * res.toneShare).toFixed(1)} %</td></tr>
+              <tr><td>Full scale now</td><td>{+res.fullScale.toPrecision(5)} {res.unit}</td></tr>
+              <tr><td>Full scale for {res.level} {res.unit}</td><td><b>{+res.suggested.toPrecision(5)} {res.unit}</b></td></tr>
+            </tbody>
+          </table>
+          <button className="nodrag" onClick={() => {
+            let src = getEdges().find((e) => e.target === id)?.source;
+            while (src && getNode(src)?.type !== 'wavSource') src = getEdges().find((e) => e.target === src)?.source;
+            if (src) updateNodeData(src, { fullScale: Number(res.suggested.toPrecision(6)) });
+          }}>Set full scale on the WAV node</button>
+          <div className="hint">Connect directly to the WAV node of the calibrator recording. Typical levels: 94 dB SPL = 1.002 Pa, 114 dB = 10.02 Pa; vibration calibrators 1 or 10 m/s² at 159.2 Hz. Below ~90 % tone share the recording is not a clean calibrator tone.</div>
         </>
       )}
     </Shell>
@@ -828,6 +868,7 @@ export const nodeTypes = {
   metricRpm: MetricRpmNode,
   binaural: BinauralNode,
   cepstrum: CepstrumNode,
+  calibTone: CalibToneNode,
   fluctuation: FluctuationNode,
   tonality: TonalityNode,
   impulsivity: ImpulsivityNode,
@@ -848,6 +889,7 @@ export const PALETTE: { type: NodeKind; label: string; defaults: Data }[] = [
   { type: 'levelStats', label: 'Level statistics (Leq, Lx)', defaults: {} },
   { type: 'annoyance', label: 'Psychoacoustic annoyance', defaults: {} },
   { type: 'binaural', label: 'Binaural analysis', defaults: { metric: 'loudness', field: 'free' } },
+  { type: 'calibTone', label: 'Calibration tone', defaults: { level: 1 } },
   { type: 'cepstrum', label: 'Cepstrum', defaults: { frameSec: 1, maxMs: 50, minMs: 1 } },
   { type: 'metricRpm', label: 'Psychoacoustic metric vs RPM', defaults: { metric: 'loudnessTv', field: 'free', mode: 'tacho', ppr: 1, rpm0: 1000, rpm1: 3000 } },
   { type: 'orders', label: 'Order analysis (vs RPM)', defaults: { mode: 'tacho', ppr: 1, rpm0: 1000, rpm1: 3000, orders: '1,2,3,4', frameSec: 0.25 } },
