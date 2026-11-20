@@ -1,6 +1,6 @@
 import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react';
-import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
-import { play, playingNode, stop as stopPlayback, subscribe } from '../ui/player';
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { play, playingNode, position, seek, stop as stopPlayback, subscribe } from '../ui/player';
 import { useGraph } from '../ui/context';
 import { Heatmap, LinePlot, SERIES } from '../ui/plots';
 import { WEIGHTINGS } from '../dsp/weighting';
@@ -40,6 +40,16 @@ const dB = (v: number) => (isFinite(v) ? v.toFixed(1) : '–');
 const refText = (ref: number, unit: string) => `dB re ${ref.toExponential(0).replace('e', '×10^').replace('+', '')} ${unit}`;
 
 // ───────────────────────── WAV source ─────────────────────────
+const clock = (t: number) => {
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+  return `${h ? `${h}:${String(m).padStart(2, '0')}` : m}:${sec < 10 ? '0' : ''}${sec.toFixed(1)}`;
+};
+/** "83.5", "1:23.5" or "1:02:03" -> seconds, or null if it isn't a time. */
+function parseClock(text: string): number | null {
+  const parts = text.trim().split(':');
+  if (!text.trim() || parts.length > 3 || parts.some((p) => !/^\d+(\.\d*)?$/.test(p))) return null;
+  return parts.reduce((t, p) => t * 60 + Number(p), 0);
+}
 interface WavInfo { fs: number; channels: number; duration: number; bits: number; format: string }
 
 export function WavSourceNode({ id, data }: NodeProps) {
@@ -51,6 +61,16 @@ export function WavSourceNode({ id, data }: NodeProps) {
   const playing = useSyncExternalStore(subscribe, playingNode) === id;
   useEffect(() => () => { if (playingNode() === id) stopPlayback(); }, [id]);
   const vol = typeof d.uiVolume === 'number' ? d.uiVolume : 0.5;
+  const [now, setNow] = useState(0);        // playback position shown (s)
+  const [drag, setDrag] = useState<number | null>(null); // slider value while it is being dragged
+  const [typed, setTyped] = useState<string | null>(null);
+  useEffect(() => {
+    setNow(position(id));
+    const t = setInterval(() => setNow(position(id)), 100);
+    return () => clearInterval(t);
+  }, [id, playing]);
+  const length = info?.duration ?? 0, shown = drag ?? now;
+  const jump = (t: number) => { const c = Math.max(0, Math.min(length, t)); seek(id, Number(d.channel), vol ** 2, c); setNow(c); setDrag(null); setTyped(null); };
   return (
     <Shell id={id} title="WAV file" accent="#2a78d6" output>
       <input className="nodrag" type="file" accept=".wav,audio/wav"
@@ -66,7 +86,7 @@ export function WavSourceNode({ id, data }: NodeProps) {
       )}
       {info && (
         <div className="row">
-          <button className="nodrag play" onClick={() => (playing ? stopPlayback() : play(id, Number(d.channel), vol ** 2))}>
+          <button className="nodrag play" onClick={() => (playing ? stopPlayback() : play(id, Number(d.channel), vol ** 2, drag ?? undefined))}>
             {playing ? '■ Stop' : '▶ Play'}
           </button>
           <label className="field">
@@ -74,6 +94,18 @@ export function WavSourceNode({ id, data }: NodeProps) {
             <input className="nodrag" type="range" min={0} max={1} step={0.05} value={vol}
               onChange={(e) => set({ uiVolume: Number(e.target.value) })} />
           </label>
+        </div>
+      )}
+      {info && (
+        <div className="row">
+          <input className="nodrag" type="range" min={0} max={length} step={Math.max(0.01, length / 2000)} value={shown} style={{ flex: 1 }}
+            onChange={(e) => setDrag(Number(e.target.value))}
+            onPointerUp={() => drag !== null && jump(drag)} onKeyUp={() => drag !== null && jump(drag)} />
+          <input className="nodrag" style={{ width: 70 }} value={typed ?? clock(shown)} title="Type a time (seconds, m:ss or h:mm:ss) and press Enter to jump there"
+            onFocus={() => setTyped(clock(shown))} onChange={(e) => setTyped(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { const t = parseClock(typed ?? ''); if (t !== null) jump(t); else setTyped(null); (e.target as HTMLInputElement).blur(); } }}
+            onBlur={() => setTyped(null)} />
+          <span className="hint">/ {clock(length)}</span>
         </div>
       )}
       {info && info.channels > 1 && (

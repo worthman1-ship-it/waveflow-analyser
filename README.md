@@ -5,7 +5,7 @@ Browser app for evaluating WAV recordings with a node graph (React Flow). Wire
 
 | Node | What it does |
 |---|---|
-| WAV file | ▶ Play button with volume (plays the raw file at its own rate; vibration recordings below ~20 Hz are inaudible). PCM 8/16/24/32-bit, float or 4-bit compressed (IMA ADPCM, Microsoft ADPCM) WAV; pick channel, quantity (acceleration, velocity, displacement, sound pressure), the physical value of digital full scale (calibration) and the dB reference (defaults per ISO 1683: 1 µm/s², 1 nm/s, 1 pm, 20 µPa). |
+| WAV file | ▶ Play button with volume (plays the raw file at its own rate; vibration recordings below ~20 Hz are inaudible), a position slider with elapsed/total time, and a time box (seconds, m:ss or h:mm:ss, Enter to jump); Stop keeps the position so Play resumes there. PCM 8/16/24/32-bit, float or 4-bit compressed (IMA ADPCM, Microsoft ADPCM) WAV; pick channel, quantity (acceleration, velocity, displacement, sound pressure), the physical value of digital full scale (calibration) and the dB reference (defaults per ISO 1683: 1 µm/s², 1 nm/s, 1 pm, 20 µPa). |
 | Frequency weighting | Z, A, C (IEC 61672); Wb, Wc, Wd, Wk, Wm, Wh (ISO 8041 / ISO 2631 / BS 6841 / ISO 5349). |
 | Fast / Slow max level | Exponential running RMS, τ = 0.125 s and 1 s: max Fast, max Slow (time of max), overall RMS/Leq, VDV for acceleration; linear and dB. |
 | Moving FFT | Hann-windowed STFT spectrogram (bin RMS) and average spectrum; FFT size, overlap, max frequency, display range, linear or logarithmic (20 Hz up) frequency axis. |
